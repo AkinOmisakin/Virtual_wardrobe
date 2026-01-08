@@ -216,7 +216,7 @@ class _WardrobePageState extends State<WardrobePage> {
           if (currentPageIndex == 0) ...[ // Outfits Page
             BottomNavigationBarItem(
               icon: Icon(
-                Icons.add_circle_outline,
+                Icons.mode_edit_outlined,
                 // color: Colors.grey
               ),
               label: 'Create Outfit',
@@ -225,7 +225,7 @@ class _WardrobePageState extends State<WardrobePage> {
           if (currentPageIndex == 1) ...[
             BottomNavigationBarItem(
               icon: Icon(
-                Icons.camera_alt_outlined,
+                Icons.photo_camera_back_outlined,
                 // color: Colors.grey
               ),
               label: 'Insert',
