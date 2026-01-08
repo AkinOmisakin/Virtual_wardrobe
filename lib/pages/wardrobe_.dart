@@ -10,18 +10,18 @@ class WardrobeBody extends StatefulWidget {
 class _WardrobeBodyState extends State<WardrobeBody> {
   
   final List<String> tops = [
-    'assets/bear_t.png',
-    'assets/peace_t.png',
+    'assets/bear_t.jpg',
+    'assets/peace_t.jpg',
   ];
 
   final List<String> trousers = [
-    'assets/jeans.png',
-    'assets/cargo.png',
+    'assets/jeans.jpg',
+    'assets/cargo.jpg',
   ];
 
   final List<String> jackets = [
-    'assets/cashmere.png',
-    'assets/red_hoodie.png',
+    'assets/cashmere.jpg',
+    'assets/red_hoodie.jpg',
   ];
 
   void _removeClothingItem(int index) {
@@ -66,6 +66,7 @@ class _WardrobeBodyState extends State<WardrobeBody> {
   }
   
   Widget _clothingCarousel(List<String> images) {
+    if (images.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
       height: 200,
