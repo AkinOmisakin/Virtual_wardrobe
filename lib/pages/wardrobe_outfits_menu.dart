@@ -4,10 +4,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:virtual_wardrobe/components/clothing_item.dart';
 import 'package:virtual_wardrobe/pages/outfits_.dart';
 import 'package:virtual_wardrobe/pages/wardrobe_.dart';
 import 'package:virtual_wardrobe/services/dbhelper_.dart';
-import 'package:virtual_wardrobe/components/imageclass_.dart';
 // import 'package:camera/camera.dart';
 
 class WardrobePage extends StatefulWidget {
@@ -29,7 +29,6 @@ class _WardrobePageState extends State<WardrobePage> {
 
   int currentPageIndex = 0; // Tracks the currently selected page index
   // NavigationDestinationLabelBehavior labelBehavior = NavigationDestinationLabelBehavior.alwaysShow;
-  int buttonIndex = 0;
 
   void _handleBottomBarTap(int index) {
     // Outfits and Wardrobe navigation
@@ -59,9 +58,11 @@ class _WardrobePageState extends State<WardrobePage> {
       context: context,
       isScrollControlled: true, // Allows sheet to expand based on content
       showDragHandle: false,      // Adds the centered pill-shaped handle
+
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
       ),
+
       builder: (BuildContext context) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 24.0, left: 16.0, right: 16.0),
@@ -112,71 +113,164 @@ class _WardrobePageState extends State<WardrobePage> {
     );
   }
 
-  // void _onAddClothing() {
-  //   showModalBottomSheet(
-  //     context: context,
+  // Future<File?> _selectPhotoFromSource(ImageSource source) async {
+  //   final ImagePicker imagePicker = ImagePicker();
+  //   final XFile? selectedImage = 
+  //           await imagePicker.pickImage(source: source);
+  //   if (selectedImage == null) return null;
 
-  //     builder: (ctx) => Column(
-  //       mainAxisSize: MainAxisSize.min,
-  //       children: <Widget> [
-  //         // Add Photo from gallery option
-  //         ElevatedButton(
-  //           onPressed: () async {
-  //             final image_file = await _selectPhotoFromSource(ImageSource.gallery);
-  //             if (image_file != null) {
-  //               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image added from gallery')));
-  //               // TODO: refresh wardrobe UI / reload images from DB
-  //             }
-  //           },
-  //           child: const Text('Add Clothing'),
-  //         ),
+  //   try {
+  //     final docs = await getApplicationDocumentsDirectory(); // Get the app's document directory
+  //     final ext = p.extension(selectedImage.path); // Get the file extension
+  //     final fileName = '${DateTime.now().millisecondsSinceEpoch}$ext'; // Unique file name
+  //     final savedPath = p.join(docs.path, fileName); // Full path to save the image
 
-  //         // Take Photo option
-  //         ElevatedButton(
-  //           onPressed: () async{
-  //             final image_file = await _selectPhotoFromSource(ImageSource.camera);
-  //             if (image_file != null) {
-  //               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image added from gallery')));
-  //               // TODO: refresh wardrobe UI / reload images from DB
-  //             }
-  //           },
-  //           child: Column(
-  //             children: const <Widget>[
-  //               Icon(Icons.camera_alt_outlined),
-  //               Text('Take Photo'),
-  //             ],
-  //           ),
-  //         )
+  //     // copy to app folder
+  //     final savedFile = await File(selectedImage.path).copy(savedPath);
 
-  //       ],
-  //     ),
-  //   );
+  //     // insert into local DB
+  //     final item = ImageItem(path: savedFile.path, createdAt: DateTime.now().toIso8601String());
+  //     await DBHelper.instance.insertImage(item);
+
+  //     return savedFile;
+  //   } catch (e) {
+  //     // ignore: avoid_print
+  //     print('Error saving image: $e');
+  //     return null;
+  //   }
   // }
 
-  Future<File?> _selectPhotoFromSource(ImageSource source) async {
+  Future<void> _selectPhotoFromSource(ImageSource source) async {
+    // pick an image (you can switch to ImageSource.camera where appropriate)
     final ImagePicker imagePicker = ImagePicker();
-    final XFile? selectedImage = 
-            await imagePicker.pickImage(source: source, imageQuality: 90);
-    if (selectedImage == null) return null;
+    final XFile? selectedImage = await imagePicker.pickImage(source: source, imageQuality: 85);
+    if (selectedImage == null) return;
 
-    try {
-      final docs = await getApplicationDocumentsDirectory(); // Get the app's document directory
-      final ext = p.extension(selectedImage.path); // Get the file extension
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}$ext'; // Unique file name
-      final savedPath = p.join(docs.path, fileName); // Full path to save the image
+    // show preview + metadata form
+    ClothingType selectedType = ClothingType.top;
+    final TextEditingController descController = TextEditingController();
 
-      // copy to app folder
-      final savedFile = await File(selectedImage.path).copy(savedPath);
+    final savedImage = await showModalBottomSheet<File?>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+      ),
+      builder: (BuildContext ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            left: 16,
+            right: 16,
+            top: 16,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // image preview
+                    SizedBox(
+                      height: 220,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(
+                          File(selectedImage.path),
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
 
-      // insert into local DB
-      final item = ImageItem(path: savedFile.path, createdAt: DateTime.now().toIso8601String());
-      await DBHelper.instance.insertImage(item);
+                    // clothing type dropdown
+                    DropdownButtonFormField<ClothingType>(
+                      initialValue: selectedType,
+                      items: const [
+                        DropdownMenuItem(value: ClothingType.top, child: Text('Top')),
+                        DropdownMenuItem(value: ClothingType.trousers, child: Text('Trousers')),
+                        DropdownMenuItem(value: ClothingType.jacket, child: Text('Jacket')),
+                        DropdownMenuItem(value: ClothingType.dress, child: Text('Dress')),
+                        DropdownMenuItem(value: ClothingType.shoes, child: Text('Shoes')),
+                        DropdownMenuItem(value: ClothingType.accessory, child: Text('Accessory')),
+                      ],
+                      onChanged: (v) => setModalState(() => selectedType = v ?? ClothingType.top),
+                      decoration: const InputDecoration(labelText: 'Type'),
+                    ),
 
-      return savedFile;
-    } catch (e) {
-      // ignore: avoid_print
-      print('Error saving image: $e');
-      return null;
+                    const SizedBox(height: 8),
+
+                    // description input
+                    TextFormField(
+                      controller: descController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description (optional)',
+                        hintText: 'e.g. Red Hoodie',
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // actions
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(ctx).pop(null),
+                            child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              // copy file to app documents folder
+                              final docs = await getApplicationDocumentsDirectory();
+                              final ext = p.extension(selectedImage.path);
+                              final fileName = '${DateTime.now().millisecondsSinceEpoch}$ext';
+                              final savedPath = p. join(docs.path, fileName);
+                              final savedFile = await File(selectedImage.path).copy(savedPath);
+
+                              // optionally attach metadata (selectedType/name) here
+                              // e.g. insert into DB or call a callback
+                              // Example return value: saved file
+                              Navigator.of(ctx).pop(savedFile);
+                            },
+                            child: const Text('Save'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    if (savedImage != null) {
+      // saved is the File in app storage; here you should:
+      // - insert path + metadata into your DB
+      // - update UI state (setState) to show the new item in Wardrobe
+      final savedPath = savedImage.path;
+
+      final item = ClothingItem(
+        id: null, // make id nullable in your model (int?) so DB can autoincrement
+        path: savedPath,
+        type: selectedType,
+        createdAt: DateTime.now(),
+        description: descController.text,
+      );
+
+      await WardrobeDatabase.instance.insertImage(item);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image saved — add it to DB / refresh wardrobe.')),
+      );
+
     }
   }
 

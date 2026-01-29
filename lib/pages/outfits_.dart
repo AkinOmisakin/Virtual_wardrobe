@@ -31,15 +31,15 @@ class _OutfitsPageState extends State<OutfitsPage> {
     );
   }
 
-  Widget _sectionTitle(String title, BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
-    );
-  }
+  // Widget _sectionTitle(String title, BuildContext context) {
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+  //     child: Text(
+  //       title,
+  //       style: Theme.of(context).textTheme.titleLarge,
+  //     ),
+  //   );
+  // }
 
   Widget _clothingCarousel(List<String> images) {
     return SizedBox(
