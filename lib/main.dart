@@ -40,7 +40,7 @@ class _HomeState extends State<Home> {
   ];
 
   int currentPageIndex = 0; // Tracks the currently selected page index
-  NavigationDestinationLabelBehavior labelBehavior = NavigationDestinationLabelBehavior.alwaysHide;
+  NavigationDestinationLabelBehavior labelBehavior = NavigationDestinationLabelBehavior.alwaysHide; // sets visibility of labels in the bottom navigation bar
 
   // Updates the current page index based on user selection
   void _navigationBottomBar(int index) {
@@ -49,6 +49,7 @@ class _HomeState extends State<Home> {
     });
   }
 
+  // Builds the main scaffold with bottom navigation bar
   @override
   Widget build(BuildContext context) {
     return Scaffold(

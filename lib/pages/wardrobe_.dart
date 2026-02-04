@@ -3,6 +3,8 @@
 // import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/material.dart';
+import 'package:virtual_wardrobe/components/clothing_categories.dart';
+import 'package:virtual_wardrobe/components/clothing_item.dart';
 
 class WardrobeBody extends StatefulWidget {
   const WardrobeBody({super.key});
@@ -13,26 +15,83 @@ class WardrobeBody extends StatefulWidget {
 
 class _WardrobeBodyState extends State<WardrobeBody> {
   
-  final List<String> tops = [
-    'assets/bear_t.jpg',
-    'assets/peace_t.jpg',
-    'assets/cashmere.jpg',
-    'assets/red_hoodie.jpg',
+  // lists of clothing displayed in the wardrobe carousels
+  static List<ClothingItem> tops = [
+    ClothingItem(
+      type: ClothingType.top,
+      image: Image.asset('assets/bear_t.jpg'),
+      description: 'A cute bear t-shirt',
+    ),
+    ClothingItem(
+      type: ClothingType.top,
+      image: Image.asset('assets/peace_t.jpg'),
+      description: 'A stylish peace sign t-shirt',
+    ),
+    ClothingItem(
+      type: ClothingType.top,
+      image: Image.asset('assets/cashmere.jpg'),
+      description: 'A warm cashmere sweater',
+    ),
+    ClothingItem(
+      type: ClothingType.top,
+      image: Image.asset('assets/red_hoodie.jpg'),
+      description: 'A cozy red hoodie',
+    ),
   ];
 
-  final List<String> trousers = [
-    'assets/jeans.jpg',
-    'assets/cargo.jpg',
+  // list_trousers = SELECT * FROM clothing_items WHERE type = 'trousers';
+  // trousers.mergeFromDatabase(list_trousers);
+
+  static List<ClothingItem> trousers = [
+    ClothingItem(
+      type: ClothingType.trousers,
+      image: Image.asset('assets/jeans.jpg'),
+      description: 'A pair of stylish jeans',
+    ),
+    ClothingItem(
+      type: ClothingType.trousers,
+      image: Image.asset('assets/cargo.jpg'),
+      description: 'A pair of comfortable cargo pants',
+    ),
   ];
 
-  void _removeClothingItem(int index) {
+  static List<ClothingItem> shoes = [
+    ClothingItem(
+      type: ClothingType.shoes,
+      image: Image.asset('assets/blue_laces_shoe.jpg'),
+      description: 'A pair of blue shoes with white laces',
+    ),
+    ClothingItem(
+      type: ClothingType.shoes,
+      image: Image.asset('assets/brown_smart_shoe.jpg'),
+      description: 'A pair of brown smart shoes',
+    ),
+  ];
+
+  late List<ClothingCategory> categories;
+
+  @override
+  void initState() {
+    super.initState();
+    categories = [
+      ClothingCategory('Tops', tops),
+      ClothingCategory('Trousers', trousers),
+      ClothingCategory('Shoes', shoes),
+    ];
+  }
+
+  
+
+  // method to remove clothing items from the lists
+  void _removeClothingItem(List<ClothingItem> category, int index) {
+    Navigator.of(context).pop();
     setState(() {
-      tops.removeAt(index);
-      trousers.removeAt(index);
+      category.removeAt(index);
     });
   }
 
-  void _remove(int index) {
+  // method to show modal bottom sheet for removing items
+  void _remove(List<ClothingItem> category, int index) {
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
@@ -42,7 +101,7 @@ class _WardrobeBodyState extends State<WardrobeBody> {
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
                 title: const Text('Delete Item', style: TextStyle(color: Colors.red)),
-                onTap: () => _removeClothingItem(index),
+                onTap: () => _removeClothingItem(category, index),
               ),
               ListTile(
                 leading: const Icon(Icons.cancel),
@@ -59,24 +118,25 @@ class _WardrobeBodyState extends State<WardrobeBody> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
-      // BODY** with clothing categories
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionTitle('Tops', context, tops),
-            _clothingCarousel(tops),
-
-            _sectionTitle('Trousers', context, trousers),
-            _clothingCarousel(trousers),
-          ],
+          children: categories.map((category) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionTitle(context, category.title, category.items),
+                _clothingCarousel(category.items),
+                const SizedBox(height: 24),
+              ],
+            );
+          }).toList(),
         ),
       ),
     );
   }
 
-  Widget _sectionTitle(String title, BuildContext context, List<String> images) {
+  Widget _sectionTitle(BuildContext context, String title, List<ClothingItem> items) {
     return Row(children: [
       // Title
       Padding(
@@ -87,19 +147,24 @@ class _WardrobeBodyState extends State<WardrobeBody> {
         ),
       ),
       // Item count
-      if (images.isNotEmpty)
+      if (items.isNotEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Text(
-            '(${images.length}) Items',
+            '(${items.length}) Items',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
     ]);
   }
 
-  Widget _clothingCarousel(List<String> images) {
-    if (images.isEmpty) return const SizedBox.shrink();
+  Widget _clothingCarousel(List<ClothingItem> items) {
+    if (items.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Text("No items yet"),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,7 +174,7 @@ class _WardrobeBodyState extends State<WardrobeBody> {
           height: 200,
           child: PageView.builder(
             controller: PageController(viewportFraction: 0.7),
-            itemCount: images.length,
+            itemCount: items.length,
             itemBuilder: (context, index) {
               return Row(
                 children: <Widget>[
@@ -117,16 +182,19 @@ class _WardrobeBodyState extends State<WardrobeBody> {
                   Expanded(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        alignment: Alignment.center,
-                        child: Image(
-                          image: AssetImage(images[index]),
-                          fit: BoxFit.contain,
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          alignment: Alignment.center,
+                          child: Image(
+                            image: items[index].image.image,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  // add a space between image and description
+                  // space between image and description
                   SizedBox(width: 16),
                   // Clothing item description
                   Expanded(
@@ -135,7 +203,7 @@ class _WardrobeBodyState extends State<WardrobeBody> {
 
                       children: <Widget>[
                         Text(
-                          images[index].split('/').last.split('.').first.replaceAll('_', ' ').toUpperCase(), // name
+                          items[index].description.toString(), // name
                           // style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         Spacer(),
@@ -143,7 +211,7 @@ class _WardrobeBodyState extends State<WardrobeBody> {
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                           child: InkWell(
-                            onTap: () => _remove(index), // Close the modal
+                            onTap: () => _remove(items, index), // remove item at index
                             borderRadius: BorderRadius.circular(30), // Pill shape for ripple effect
                             child: Container(
                               width: 80, // Wide button style

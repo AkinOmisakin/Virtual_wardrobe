@@ -1,5 +1,5 @@
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+// import 'package:path/path.dart' as p;
+// import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:virtual_wardrobe/components/clothing_item.dart';
 import 'package:virtual_wardrobe/pages/outfits_.dart';
 import 'package:virtual_wardrobe/pages/wardrobe_.dart';
-import 'package:virtual_wardrobe/services/dbhelper_.dart';
+// import 'package:virtual_wardrobe/services/dbhelper_.dart';
 // import 'package:camera/camera.dart';
 
 class WardrobePage extends StatefulWidget {
@@ -52,7 +52,7 @@ class _WardrobePageState extends State<WardrobePage> {
     }
   }
 
-  Future<void> _onAddClothing() async {
+  void _onAddClothing() {
     // Menu popup window for adding clothing
     showModalBottomSheet(
       context: context,
@@ -113,44 +113,49 @@ class _WardrobePageState extends State<WardrobePage> {
     );
   }
 
-  // Future<File?> _selectPhotoFromSource(ImageSource source) async {
-  //   final ImagePicker imagePicker = ImagePicker();
-  //   final XFile? selectedImage = 
-  //           await imagePicker.pickImage(source: source);
-  //   if (selectedImage == null) return null;
+  void _selectPhotoFromSource(ImageSource source) async {
 
-  //   try {
-  //     final docs = await getApplicationDocumentsDirectory(); // Get the app's document directory
-  //     final ext = p.extension(selectedImage.path); // Get the file extension
-  //     final fileName = '${DateTime.now().millisecondsSinceEpoch}$ext'; // Unique file name
-  //     final savedPath = p.join(docs.path, fileName); // Full path to save the image
-
-  //     // copy to app folder
-  //     final savedFile = await File(selectedImage.path).copy(savedPath);
-
-  //     // insert into local DB
-  //     final item = ImageItem(path: savedFile.path, createdAt: DateTime.now().toIso8601String());
-  //     await DBHelper.instance.insertImage(item);
-
-  //     return savedFile;
-  //   } catch (e) {
-  //     // ignore: avoid_print
-  //     print('Error saving image: $e');
-  //     return null;
-  //   }
-  // }
-
-  Future<void> _selectPhotoFromSource(ImageSource source) async {
-    // pick an image (you can switch to ImageSource.camera where appropriate)
-    final ImagePicker imagePicker = ImagePicker();
-    final XFile? selectedImage = await imagePicker.pickImage(source: source, imageQuality: 85);
-    if (selectedImage == null) return;
-
-    // show preview + metadata form
+    final ImagePicker picker = ImagePicker();
+    List<XFile>? pickedImages;
+    XFile? cameraImage;
+    final List<ClothingItem?> clothingItems = []; // To hold multiple items if needed
+    final ClothingItem? savedItem;
     ClothingType selectedType = ClothingType.top;
-    final TextEditingController descController = TextEditingController();
+    final descController = TextEditingController();
 
-    final savedImage = await showModalBottomSheet<File?>(
+    Navigator.of(context).pop(); // Close the bottom sheet
+    
+    // only run buildCIForm if images are selected 
+    if (source == ImageSource.gallery) {
+      pickedImages = getImagesFromGallery(picker) as List<XFile>?;
+      if (pickedImages == null || pickedImages.isEmpty) {
+        return;
+      }
+      for (var img in pickedImages) {
+        clothingItems.add(await _buildClothingItemForm(img, selectedType, descController));
+      }
+      for (var item in clothingItems) {
+        if (item != null) {
+          _saveClothingItem(item);
+        }
+      }
+    }
+
+    if (source == ImageSource.camera) {
+      cameraImage  = getImageFromCamera(picker) as XFile?;
+      if (cameraImage == null) {
+        return;
+      }
+      savedItem = await _buildClothingItemForm(cameraImage, selectedType, descController);
+      if (savedItem != null) {
+        _saveClothingItem(savedItem);
+      } 
+    }
+  }
+
+  Future<ClothingItem?> _buildClothingItemForm(XFile image, ClothingType selectedType, TextEditingController descController)  async {
+    // Build form for clothing item details
+    final result = await showModalBottomSheet<ClothingItem?>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -176,13 +181,12 @@ class _WardrobePageState extends State<WardrobePage> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: Image.file(
-                          File(selectedImage.path),
+                          File(image.path),
                           fit: BoxFit.contain,
                         ),
                       ),
                     ),
                     const SizedBox(height: 12),
-
                     // clothing type dropdown
                     DropdownButtonFormField<ClothingType>(
                       initialValue: selectedType,
@@ -223,18 +227,13 @@ class _WardrobePageState extends State<WardrobePage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () async {
-                              // copy file to app documents folder
-                              final docs = await getApplicationDocumentsDirectory();
-                              final ext = p.extension(selectedImage.path);
-                              final fileName = '${DateTime.now().millisecondsSinceEpoch}$ext';
-                              final savedPath = p. join(docs.path, fileName);
-                              final savedFile = await File(selectedImage.path).copy(savedPath);
-
-                              // optionally attach metadata (selectedType/name) here
-                              // e.g. insert into DB or call a callback
-                              // Example return value: saved file
-                              Navigator.of(ctx).pop(savedFile);
+                            onPressed: () {
+                              final savedItem = ClothingItem(
+                                type: selectedType,
+                                image: Image.file(File(image.path)),
+                                description: descController.text.trim(),
+                              );
+                              Navigator.of(ctx).pop(savedItem);
                             },
                             child: const Text('Save'),
                           ),
@@ -250,31 +249,28 @@ class _WardrobePageState extends State<WardrobePage> {
         );
       },
     );
+    return result;
+  } 
 
-    if (savedImage != null) {
-      // saved is the File in app storage; here you should:
-      // - insert path + metadata into your DB
-      // - update UI state (setState) to show the new item in Wardrobe
-      final savedPath = savedImage.path;
+  
 
-      final item = ClothingItem(
-        id: null, // make id nullable in your model (int?) so DB can autoincrement
-        path: savedPath,
-        type: selectedType,
-        createdAt: DateTime.now(),
-        description: descController.text,
-      );
-
-      await WardrobeDatabase.instance.insertImage(item);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Image saved — add it to DB / refresh wardrobe.')),
-      );
-
-    }
+  Future<List<XFile>?> getImagesFromGallery(ImagePicker picker) async {
+    //get images from gallery
+    final List<XFile> selectedImages = await picker.pickMultiImage();
+    if (selectedImages.isEmpty) return null;
+    return selectedImages;
   }
 
+  Future<XFile?> getImageFromCamera(ImagePicker picker) async {
+    //get image from camera
+    final XFile? capturedImage = await picker.pickImage(source: ImageSource.camera);
+    if (capturedImage == null) return null;
+    return capturedImage;
+  }
 
+  void _saveClothingItem(ClothingItem item) async {
+    return;
+  }
 
   @override
   Widget build(BuildContext context) {
