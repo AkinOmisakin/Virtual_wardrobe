@@ -19,22 +19,22 @@ class _WardrobeBodyState extends State<WardrobeBody> {
   static List<ClothingItem> tops = [
     ClothingItem(
       type: ClothingType.top,
-      image: Image.asset('assets/bear_t.jpg'),
+      image: Image.asset('assets/clothing/bear_t.jpg'),
       description: 'A cute bear t-shirt',
     ),
     ClothingItem(
       type: ClothingType.top,
-      image: Image.asset('assets/peace_t.jpg'),
+      image: Image.asset('assets/clothing/peace_t.jpg'),
       description: 'A stylish peace sign t-shirt',
     ),
     ClothingItem(
       type: ClothingType.top,
-      image: Image.asset('assets/cashmere.jpg'),
+      image: Image.asset('assets/clothing/cashmere.jpg'),
       description: 'A warm cashmere sweater',
     ),
     ClothingItem(
       type: ClothingType.top,
-      image: Image.asset('assets/red_hoodie.jpg'),
+      image: Image.asset('assets/clothing/red_hoodie.jpg'),
       description: 'A cozy red hoodie',
     ),
   ];
@@ -45,12 +45,12 @@ class _WardrobeBodyState extends State<WardrobeBody> {
   static List<ClothingItem> trousers = [
     ClothingItem(
       type: ClothingType.trousers,
-      image: Image.asset('assets/jeans.jpg'),
+      image: Image.asset('assets/clothing/jeans.jpg'),
       description: 'A pair of stylish jeans',
     ),
     ClothingItem(
       type: ClothingType.trousers,
-      image: Image.asset('assets/cargo.jpg'),
+      image: Image.asset('assets/clothing/cargo.jpg'),
       description: 'A pair of comfortable cargo pants',
     ),
   ];
@@ -58,12 +58,12 @@ class _WardrobeBodyState extends State<WardrobeBody> {
   static List<ClothingItem> shoes = [
     ClothingItem(
       type: ClothingType.shoes,
-      image: Image.asset('assets/blue_laces_shoe.jpg'),
+      image: Image.asset('assets/clothing/blue_laces_shoe.jpg'),
       description: 'A pair of blue shoes with white laces',
     ),
     ClothingItem(
       type: ClothingType.shoes,
-      image: Image.asset('assets/brown_smart_shoe.jpg'),
+      image: Image.asset('assets/clothing/brown_smart_shoe.jpg'),
       description: 'A pair of brown smart shoes',
     ),
   ];

@@ -21,7 +21,7 @@ class _WardrobePageState extends State<WardrobePage> {
 
   final List<(Widget, String)> _pages = [
     (OutfitsPage(), 'Outfits'),
-    (WardrobeBody(), 'Wardrobe'),
+    (WardrobeBody(), 'Clothing Carousel'),
     // Placeholder(), // Placeholder for Add Clothing page
   ];
 
@@ -43,8 +43,11 @@ class _WardrobePageState extends State<WardrobePage> {
   void _onButton3Pressed(int index) {
     if (currentPageIndex == 0 && index == 2) {
       // On Outfits Page and Add Outfit button pressed
-      // print('Add Outfit button pressed');
+      // set currentPageIndex to 3 to unlock the Create Outfit page in the bottom navigation bar
+      // this works because this method is only accessed when currentPageIndex is 0 or 1 and can change back to 0 and 1 so doesn't get stuck on 3
+      // This is gonna be the version of create outfit where they have to use a mannequin or canvas to build outfits
       null;
+      
     }
     if (currentPageIndex == 1 && index == 2) {
       // On Wardrobe Page and 'Insert' button pressed
@@ -230,7 +233,7 @@ class _WardrobePageState extends State<WardrobePage> {
                             onPressed: () {
                               final savedItem = ClothingItem(
                                 type: selectedType,
-                                image: Image.file(File(image.path)),
+                                image: Image.file(File(image.path)), // image url or path for database storage
                                 description: descController.text.trim(),
                               );
                               Navigator.of(ctx).pop(savedItem);
@@ -287,27 +290,71 @@ class _WardrobePageState extends State<WardrobePage> {
       bottomNavigationBar: BottomNavigationBar(
 
         items: <BottomNavigationBarItem>[
+          //outfits
           BottomNavigationBarItem(
-            icon: Icon(
-              Icons.man_4_sharp,
-              // color: Colors.grey
+            icon: IconTheme(
+              data: IconThemeData(
+                color: null,
+              ),
+              child: ImageIcon(
+                AssetImage('assets/icons/outfit.png'),
+                size: 20,
+              ),
+            ),
+            activeIcon: IconTheme(
+              data: IconThemeData(
+                color: Color.fromARGB(255, 0, 183, 255),
+              ),
+              child: ImageIcon(
+                AssetImage('assets/icons/outfit.png'),
+                size: 35,
+              ),
             ),
             label: 'Outfits',
           ),
-    
+
+          // Clothing carousel
           BottomNavigationBarItem(
-            icon: Icon(
-              Icons.checkroom,
-              // color: Colors.grey
+            icon: IconTheme(
+              data: IconThemeData(
+                color: null,
+              ),
+              child: ImageIcon(
+                AssetImage('assets/icons/clothing_carousel.png'),
+                size: 25,
+              ),
             ),
-            label: 'Wardrobe',
+            activeIcon: IconTheme(
+              data: IconThemeData(
+                color: Color.fromARGB(255, 255, 215, 0),
+              ),
+              child: ImageIcon(
+                AssetImage('assets/icons/clothing_carousel.png'),
+                size: 35,
+              ),
+            ),
+            label: 'Dresser',
           ),
 
           if (currentPageIndex == 0) ...[ // Outfits Page
             BottomNavigationBarItem(
-              icon: Icon(
-                Icons.mode_edit_outlined,
-                // color: Colors.grey
+              icon: IconTheme(
+                data: IconThemeData(
+                  color: null,
+                ),
+                child: ImageIcon(
+                  AssetImage('assets/icons/hanger_sparkle_outlined.png'),
+                  size: 15,
+                ),
+              ),
+              activeIcon: IconTheme(
+                data: IconThemeData(
+                  color: Color.fromARGB(255, 255, 215, 0),
+                ),
+                child: ImageIcon(
+                  AssetImage('assets/icons/hanger_sparkle_filled.png'),
+                  size: 25,
+                ),
               ),
               label: 'Create Outfit',
             ),
@@ -316,9 +363,9 @@ class _WardrobePageState extends State<WardrobePage> {
             BottomNavigationBarItem(
               icon: Icon(
                 Icons.photo_camera_back_outlined,
-                // color: Colors.grey
+                size: 25,
               ),
-              label: 'Insert',
+              label: 'Add Clothing',
             )
           ],
         ],
@@ -326,11 +373,21 @@ class _WardrobePageState extends State<WardrobePage> {
         currentIndex: currentPageIndex,
         onTap: _handleBottomBarTap,
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
+        showUnselectedLabels: true,
+
+        selectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color.fromARGB(255, 0, 0, 0)
+        ),
+        unselectedLabelStyle: TextStyle(
+          color: const Color.fromARGB(255, 0, 0, 0),
+        ),
+
+        selectedItemColor: Color.fromARGB(255, 0, 0, 0),
         unselectedItemColor: Colors.grey,
-        showUnselectedLabels: false,
+  
         selectedIconTheme: const IconThemeData(
-          color: Colors.blue,
+          color: Color.fromARGB(255, 0, 0, 0),
         ),
         unselectedIconTheme: const IconThemeData(
           color: Colors.grey,

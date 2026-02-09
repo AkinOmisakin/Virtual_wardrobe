@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:virtual_wardrobe/pages/home_page_.dart';
 // import 'package:virtual_wardrobe/pages/outfits_.dart';
@@ -40,7 +42,7 @@ class _HomeState extends State<Home> {
   ];
 
   int currentPageIndex = 0; // Tracks the currently selected page index
-  NavigationDestinationLabelBehavior labelBehavior = NavigationDestinationLabelBehavior.alwaysHide; // sets visibility of labels in the bottom navigation bar
+  NavigationDestinationLabelBehavior labelBehavior = NavigationDestinationLabelBehavior.onlyShowSelected; // sets visibility of labels in the bottom navigation bar
 
   // Updates the current page index based on user selection
   void _navigationBottomBar(int index) {
@@ -61,32 +63,46 @@ class _HomeState extends State<Home> {
             icon: Icon(
               Icons.home_filled,
               color: Colors.black,
+              size: 25,
             ),
             selectedIcon: Icon(
               Icons.home_filled,
               color: Colors.green,
+              size: 35,
             ),
             label: 'Home'
           ),
           NavigationDestination(
-            icon: Icon(
-              Icons.checkroom,
+            icon: ImageIcon(
+              AssetImage('assets/icons/wardrobe_person.png'),
               color: Colors.black,
+              size: 25,
             ),
-            selectedIcon: Icon(
-              Icons.checkroom,
+            selectedIcon: ImageIcon(
+              AssetImage('assets/icons/wardrobe_opened.png'),
               color: Colors.deepPurple,
-            ),
+              size: 30,
+              ),
             label: 'Wardrobe'
           ),
           NavigationDestination(
-            icon: Icon(
-              Icons.person,
-              color: Colors.black,
+            icon: IconTheme(
+              data: IconThemeData(
+                color: null,
+              ),
+              child: Icon(
+                Icons.person,
+                size: 25,
+              )
             ),
-            selectedIcon: Icon(
-              Icons.person,
-              color: Colors.orangeAccent, 
+            selectedIcon: IconTheme(
+              data: IconThemeData(
+                color: Colors.orangeAccent,
+              ),
+              child: Icon(
+                Icons.person,
+                size: 35,
+              ),
             ),
             label: 'Profile'
           ),
@@ -94,10 +110,23 @@ class _HomeState extends State<Home> {
 
         selectedIndex: currentPageIndex,
         labelBehavior: labelBehavior,
+        animationDuration: const Duration(milliseconds: 300),
+        labelTextStyle: WidgetStatePropertyAll(
+          TextStyle(fontSize: 14,
+          // fontWeight: FontWeight.bold,
+          )),
+        elevation: sqrt(10) * 10,
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30),
+          side: BorderSide(
+            color: Colors.grey.shade300,
+            width: 1.0,
+          ),
+        ),
         onDestinationSelected: _navigationBottomBar,
         backgroundColor: const Color.fromARGB(255, 253, 237, 95),
         indicatorColor: const Color.fromARGB(255, 255, 255, 255),
-        
+
       ),
     );
   }

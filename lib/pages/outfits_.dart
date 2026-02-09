@@ -10,8 +10,8 @@ class OutfitsPage extends StatefulWidget {
 class _OutfitsPageState extends State<OutfitsPage> {
 
   final List<String> outfits = [
-    'assets/bear_t_jeans.jpg',
-    'assets/peace_t_cargo.jpg',
+    'assets/clothing/bear_t_jeans.jpg',
+    'assets/clothing/peace_t_cargo.jpg',
   ];
 
   @override
