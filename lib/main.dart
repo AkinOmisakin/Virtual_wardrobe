@@ -3,12 +3,34 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:virtual_wardrobe/pages/home_page_.dart';
 // import 'package:virtual_wardrobe/pages/outfits_.dart';
-import 'package:virtual_wardrobe/pages/wardrobe_outfits_menu.dart';
-import 'package:virtual_wardrobe/pages/profile_.dart';
+import 'package:virtual_wardrobe/pages/wardrobe_page.dart';
+import 'package:virtual_wardrobe/pages/profile_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
+  await dotenv.load(fileName: ".env");
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
-void main () => runApp(const VirtualWardrobeApp());
+  if (supabaseUrl == null || supabaseAnonKey == null) {
+    throw Exception('Missing SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY in .env');
+  }
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
+  );
+
+  runApp(const VirtualWardrobeApp());
+}
+
 
 class VirtualWardrobeApp extends StatelessWidget {
   const VirtualWardrobeApp({super.key});
@@ -33,15 +55,20 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-
-  // List of pages for navigation
-  final List<Widget> _pages = [
-    HomePage(),
-    WardrobePage(),
-    ProfilePage(),
-  ];
-
   int currentPageIndex = 0; // Tracks the currently selected page index
+
+  late final List<Widget> _pages; // List of pages for navigation
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      HomePage(),
+      WardrobePage(),
+      ProfilePage(),
+    ];
+  }
+
   NavigationDestinationLabelBehavior labelBehavior = NavigationDestinationLabelBehavior.onlyShowSelected; // sets visibility of labels in the bottom navigation bar
 
   // Updates the current page index based on user selection
@@ -55,7 +82,10 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[currentPageIndex], // Display the selected page
+      body: IndexedStack(
+        index: currentPageIndex,
+        children: _pages
+      ),
 
       bottomNavigationBar: NavigationBar(
         destinations: const <NavigationDestination> [

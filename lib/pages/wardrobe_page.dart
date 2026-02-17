@@ -5,10 +5,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:virtual_wardrobe/components/clothing_item.dart';
-import 'package:virtual_wardrobe/pages/outfits_.dart';
-import 'package:virtual_wardrobe/pages/wardrobe_.dart';
-// import 'package:virtual_wardrobe/services/dbhelper_.dart';
-// import 'package:camera/camera.dart';
+import 'package:virtual_wardrobe/pages/outfits_page.dart';
+import 'package:virtual_wardrobe/pages/items_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class WardrobePage extends StatefulWidget {
   const WardrobePage({super.key});
@@ -19,16 +20,18 @@ class WardrobePage extends StatefulWidget {
 
 class _WardrobePageState extends State<WardrobePage> {
 
-  final List<(Widget, String)> _pages = [
-    (OutfitsPage(), 'Outfits'),
-    (WardrobeBody(), 'Clothing Carousel'),
-    // Placeholder(), // Placeholder for Add Clothing page
-  ];
+  int currentPageIndex = 1; // Tracks the currently selected page index
 
-  // File? _selectedImage;
+  late final List<Widget> _pages;
 
-  int currentPageIndex = 0; // Tracks the currently selected page index
-  // NavigationDestinationLabelBehavior labelBehavior = NavigationDestinationLabelBehavior.alwaysShow;
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const OutfitsPage(),
+      const ItemsPage(),
+    ];
+  }
 
   void _handleBottomBarTap(int index) {
     // Outfits and Wardrobe navigation
@@ -56,6 +59,7 @@ class _WardrobePageState extends State<WardrobePage> {
   }
 
   void _onAddClothing() {
+    final ImagePicker picker = ImagePicker();
     // Menu popup window for adding clothing
     showModalBottomSheet(
       context: context,
@@ -77,13 +81,13 @@ class _WardrobePageState extends State<WardrobePage> {
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined),
                 title: const Text('Camera'),
-                onTap: () => _selectPhotoFromSource(ImageSource.camera),
+                onTap: () => _selectPhotoFromCamera(picker),
               ),
               // Add Photo from gallery option
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined),
                 title: const Text('Photos'),
-                onTap: () => _selectPhotoFromSource(ImageSource.gallery),
+                onTap: () => _selectPhotosFromGallery(picker),
               ),
               // Close button
               Padding(
@@ -116,47 +120,61 @@ class _WardrobePageState extends State<WardrobePage> {
     );
   }
 
-  void _selectPhotoFromSource(ImageSource source) async {
-
-    final ImagePicker picker = ImagePicker();
-    List<XFile>? pickedImages;
-    XFile? cameraImage;
-    final List<ClothingItem?> clothingItems = []; // To hold multiple items if needed
-    final ClothingItem? savedItem;
-    ClothingType selectedType = ClothingType.top;
-    final descController = TextEditingController();
-
+  void _selectPhotosFromGallery(ImagePicker picker) async {
     Navigator.of(context).pop(); // Close the bottom sheet
-    
-    // only run buildCIForm if images are selected 
-    if (source == ImageSource.gallery) {
-      pickedImages = getImagesFromGallery(picker) as List<XFile>?;
-      if (pickedImages == null || pickedImages.isEmpty) {
-        return;
-      }
-      for (var img in pickedImages) {
-        clothingItems.add(await _buildClothingItemForm(img, selectedType, descController));
-      }
-      for (var item in clothingItems) {
-        if (item != null) {
-          _saveClothingItem(item);
-        }
-      }
-    }
 
-    if (source == ImageSource.camera) {
-      cameraImage  = getImageFromCamera(picker) as XFile?;
-      if (cameraImage == null) {
-        return;
-      }
-      savedItem = await _buildClothingItemForm(cameraImage, selectedType, descController);
-      if (savedItem != null) {
-        _saveClothingItem(savedItem);
-      } 
+    // initialise list of possible clothign items to select from gallery
+    final List<ClothingItem?> clothingItems = [];
+    //import them from gallery as list
+    final selectedImages = await getImagesFromGallery(picker);
+    if (selectedImages == null || selectedImages.isEmpty) {
+      return;
     }
+    for (var img in selectedImages) {
+      //for each image selected create a clothing item object
+      clothingItems.add(await _buildClothingItemForm(img));
+    }
+    print(clothingItems);
+    for (var item in clothingItems) {
+      if (item != null) {
+        // if item is 
+        _saveClothingItem(item);
+      }
+    }
+    print(clothingItems);
   }
 
-  Future<ClothingItem?> _buildClothingItemForm(XFile image, ClothingType selectedType, TextEditingController descController)  async {
+  Future<List<XFile>?> getImagesFromGallery(ImagePicker picker) async {
+    //get images from gallery
+    final List<XFile> selectedImages = await picker.pickMultiImage();
+    if (selectedImages.isEmpty) return null;
+    return selectedImages;
+  }
+
+
+  void _selectPhotoFromCamera(ImagePicker picker) async {
+    Navigator.of(context).pop(); // Close the bottom sheet
+    final XFile? selectedImage = await getImageFromCamera(picker);
+    if (selectedImage == null) {
+        return;
+    }
+    final ClothingItem? savedItem = await _buildClothingItemForm(selectedImage);
+    if (savedItem != null) {
+        _saveClothingItem(savedItem);
+    }
+  }
+  
+  Future<XFile?> getImageFromCamera(ImagePicker picker) async {
+    //get image from camera
+    final XFile? capturedImage = await picker.pickImage(source: ImageSource.camera);
+    if (capturedImage == null) return null;
+    return capturedImage;
+  }
+
+  Future<ClothingItem?> _buildClothingItemForm(XFile image)  async {
+    ClothingType selectedType = ClothingType.top;
+    final descController = TextEditingController();
+    ClothingItem? savedItem;
     // Build form for clothing item details
     final result = await showModalBottomSheet<ClothingItem?>(
       context: context,
@@ -185,7 +203,7 @@ class _WardrobePageState extends State<WardrobePage> {
                         borderRadius: BorderRadius.circular(12),
                         child: Image.file(
                           File(image.path),
-                          fit: BoxFit.contain,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
@@ -202,7 +220,7 @@ class _WardrobePageState extends State<WardrobePage> {
                         DropdownMenuItem(value: ClothingType.accessory, child: Text('Accessory')),
                       ],
                       onChanged: (v) => setModalState(() => selectedType = v ?? ClothingType.top),
-                      decoration: const InputDecoration(labelText: 'Type'),
+                      decoration: const InputDecoration(labelText: 'type'),
                     ),
 
                     const SizedBox(height: 8),
@@ -228,15 +246,22 @@ class _WardrobePageState extends State<WardrobePage> {
                           ),
                         ),
                         const SizedBox(width: 12),
+                        // save clothing item button
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {
-                              final savedItem = ClothingItem(
-                                type: selectedType,
-                                image: Image.file(File(image.path)), // image url or path for database storage
-                                description: descController.text.trim(),
-                              );
-                              Navigator.of(ctx).pop(savedItem);
+                            onPressed: () async {
+                              try {
+                                // await the upload here (properly typed)
+                                final uploadedUrl = await _uploadImageToSupabase(image, selectedType);
+                                savedItem = ClothingItem(
+                                  type: selectedType,
+                                  imageUrl: uploadedUrl, 
+                                  description: descController.text.trim(),
+                                );
+                                Navigator.of(ctx).pop(savedItem);
+                              } catch (e) {
+                                rethrow;
+                              }
                             },
                             child: const Text('Save'),
                           ),
@@ -253,42 +278,71 @@ class _WardrobePageState extends State<WardrobePage> {
       },
     );
     return result;
-  } 
-
-  
-
-  Future<List<XFile>?> getImagesFromGallery(ImagePicker picker) async {
-    //get images from gallery
-    final List<XFile> selectedImages = await picker.pickMultiImage();
-    if (selectedImages.isEmpty) return null;
-    return selectedImages;
   }
 
-  Future<XFile?> getImageFromCamera(ImagePicker picker) async {
-    //get image from camera
-    final XFile? capturedImage = await picker.pickImage(source: ImageSource.camera);
-    if (capturedImage == null) return null;
-    return capturedImage;
+
+  Future<String> _uploadImageToSupabase(XFile img, ClothingType type) async {
+    // Uploads the provided image file to the Supabase bucket "clothing images"
+    // and returns a public URL for that file.
+    // create a unique path/name for this file in the bucket
+    // https://zmnhdlrwnxsqcrcrzvje.supabase.co/storage/v1/object/public/Clothing%20images/tops/bear_t.png
+    // https://zmnhdlrwnxsqcrcrzvje.supabase.co/storage/v1/object/public/Clothing%20images/shoes/blue_laces_shoe.png
+
+    // generate file path
+    final folder = type.displayName.toLowerCase(); // e.g. tops folder store top type clothing images
+    final fileExt = img.path.split('.').last; // .png .jpg
+    final fileName = '${DateTime.now().toIso8601String()}.$fileExt';
+    final filePath = '$folder/$fileName'; // optionally prefix with user id or folder
+
+    // convert xfile to file
+    final File imageFile = File(img.path);
+
+    // get bucketName
+    final bucketName = 'Clothing images'; // hardcoded for now
+
+
+    try {
+      // final bytes = await img.readAsBytes();
+      await Supabase.instance.client.storage
+          .from(bucketName)
+          .upload(
+            filePath,
+            imageFile
+          );
+
+      // get the url of the image
+      final publicUrl = Supabase.instance.client.storage.from(bucketName).getPublicUrl(filePath);
+      return publicUrl;
+    } catch (e) {
+      // In production surface or log the error properly
+      rethrow;
+    }
   }
+
+  // String _getBucketName() {
+  //   reutn;
+  // }
 
   void _saveClothingItem(ClothingItem item) async {
-    return;
+    // Saves the ClothingItem metadata to Firestore.
+    try {
+      await FirebaseFirestore.instance
+      .collection('clothes')
+      .add(item.toMap());
+    } catch (e) {
+      // handle/log error as appropriate
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // AppBar
-      appBar: AppBar(
-        title: Text(_pages[currentPageIndex].$2),
+      body: IndexedStack(
+        index: currentPageIndex,
+        children: _pages,
       ),
-
-      // Body
-      body: _pages[currentPageIndex].$1,
-
       // ADD clothing categories
       bottomNavigationBar: BottomNavigationBar(
-
         items: <BottomNavigationBarItem>[
           //outfits
           BottomNavigationBarItem(
@@ -312,7 +366,6 @@ class _WardrobePageState extends State<WardrobePage> {
             ),
             label: 'Outfits',
           ),
-
           // Clothing carousel
           BottomNavigationBarItem(
             icon: IconTheme(
@@ -335,8 +388,8 @@ class _WardrobePageState extends State<WardrobePage> {
             ),
             label: 'Dresser',
           ),
-
-          if (currentPageIndex == 0) ...[ // Outfits Page
+           // Create outfit button (only shows when on outfits page)
+          if (currentPageIndex == 0) ...[
             BottomNavigationBarItem(
               icon: IconTheme(
                 data: IconThemeData(
@@ -359,6 +412,7 @@ class _WardrobePageState extends State<WardrobePage> {
               label: 'Create Outfit',
             ),
           ],
+          // Add Clothing button (only shows when on items page)
           if (currentPageIndex == 1) ...[
             BottomNavigationBarItem(
               icon: Icon(

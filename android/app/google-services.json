@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "701176046399",
+    "project_id": "virtual-wardrobe-70879",
+    "storage_bucket": "virtual-wardrobe-70879.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:701176046399:android:a01337826861fa8972e98a",
+        "android_client_info": {
+          "package_name": "com.example.virtual_wardrobe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4o6aS3TBx_y5xaeiIWVhqoOzkCePySio"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
