@@ -34,6 +34,7 @@ dependencies:
   camera: ^0.11.3
   collection: ^1.18.0
   flutter_dotenv: ^6.0.0 
+  google_fonts: ^6.3.3
 
   flutter:
     sdk: flutter
@@ -45,6 +46,8 @@ dependencies:
   cached_network_image: ^3.4.1
   firebase_core: ^4.4.0
   supabase_flutter: ^2.0.0
+  canvas: ^0.0.1
+  provider: ^6.1.5+1
 
 dev_dependencies:
   flutter_test:

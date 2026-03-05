@@ -2,13 +2,24 @@
 // import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
+// import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:virtual_wardrobe/components/clothing_item.dart';
-import 'package:virtual_wardrobe/pages/outfits_page.dart';
-import 'package:virtual_wardrobe/pages/items_page.dart';
+import 'package:provider/provider.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:virtual_wardrobe/components/Expandable_FAB.dart';
+
+import 'package:virtual_wardrobe/pages/fits.dart';
+import 'package:virtual_wardrobe/pages/storage.dart';
+import 'package:virtual_wardrobe/pages/canvas_example.dart';
+
+import 'package:virtual_wardrobe/models/clothing_item.dart';
+
+// import 'package:virtual_wardrobe/components/Expandable_FAB.dart';
+
+import 'package:virtual_wardrobe/services/itemprovider.dart';
 
 
 class WardrobePage extends StatefulWidget {
@@ -19,43 +30,88 @@ class WardrobePage extends StatefulWidget {
 }
 
 class _WardrobePageState extends State<WardrobePage> {
-
-  int currentPageIndex = 1; // Tracks the currently selected page index
-
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
     _pages = [
-      const OutfitsPage(),
-      const ItemsPage(),
+      OutfitsPage(),
+      ItemsPage(),
+      OutfitCanvasPage(),
+      // ,
     ];
   }
 
-  void _handleBottomBarTap(int index) {
-    // Outfits and Wardrobe navigation
-    if (index == 0 || index == 1) {
-      setState(() {
-        currentPageIndex = index;
-      });
-    }
-    _onButton3Pressed(index);
-  }
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) => ItemProvider(),
+      child: DefaultTabController(
+        length: _pages.length,
+        child: Scaffold(
+          appBar: AppBar(
+            bottom: const TabBar(
+              tabs: [
 
-  void _onButton3Pressed(int index) {
-    if (currentPageIndex == 0 && index == 2) {
-      // On Outfits Page and Add Outfit button pressed
-      // set currentPageIndex to 3 to unlock the Create Outfit page in the bottom navigation bar
-      // this works because this method is only accessed when currentPageIndex is 0 or 1 and can change back to 0 and 1 so doesn't get stuck on 3
-      // This is gonna be the version of create outfit where they have to use a mannequin or canvas to build outfits
-      null;
-      
-    }
-    if (currentPageIndex == 1 && index == 2) {
-      // On Wardrobe Page and 'Insert' button pressed
-      _onAddClothing();
-    }
+                Tab(
+                  icon: IconTheme(
+                    data: IconThemeData(
+                      color: null,
+                    ), 
+                    child: ImageIcon(
+                      AssetImage('assets/icons/outfit.png')
+                    )
+                  )
+                ),
+
+                Tab(
+                  icon: IconTheme(
+                    data: IconThemeData(
+                      color: null,
+                    ), 
+                    child: ImageIcon(
+                      AssetImage('assets/icons/clothing_carousel.png')
+                    )
+                  )
+                ),
+
+                Tab(
+                  icon: IconTheme(
+                    data: IconThemeData(
+                      color: null,
+                    ), 
+                    child: ImageIcon(
+                      AssetImage('assets/icons/hanger_sparkle_filled.png')
+                    )
+                  )
+                )
+              ],
+            ),
+            title: Center(child: Text('Wardrobe', style: Theme.of(context).textTheme.titleLarge)),
+            // elevation: 4,
+          ),
+
+          //Optional menu component: Expandable floating action buttion
+          floatingActionButton: ExpandableFab(
+            initialOpen: false,
+            distance: 110,
+            children: [
+              ActionButton(
+                onPressed: () => _onAddClothing(),
+                icon: const Icon(Icons.photo_camera_back_outlined),
+              ),
+            ],
+          ),
+          
+          body: TabBarView(
+            physics: const NeverScrollableScrollPhysics(), // disable swipe between tabs
+            children: _pages
+          ),
+
+        )
+      )
+    );
   }
 
   void _onAddClothing() {
@@ -71,24 +127,28 @@ class _WardrobePageState extends State<WardrobePage> {
       ),
 
       builder: (BuildContext context) {
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 24.0, left: 16.0, right: 16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min, // Hugs content tightly
             children: [
               const SizedBox(height: 16),
+
               // Add Photo from camera option
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined),
                 title: const Text('Camera'),
                 onTap: () => _selectPhotoFromCamera(picker),
               ),
+
               // Add Photo from gallery option
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined),
                 title: const Text('Photos'),
                 onTap: () => _selectPhotosFromGallery(picker),
               ),
+
               // Close button
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -102,6 +162,7 @@ class _WardrobePageState extends State<WardrobePage> {
                       color: Colors.grey[200], // Or use Theme.of(context).cardColor for dark mode
                       borderRadius: BorderRadius.circular(30), // Distinctive pill shape
                     ),
+
                     child: const Text(
                       'Close',
                       textAlign: TextAlign.center,
@@ -110,6 +171,7 @@ class _WardrobePageState extends State<WardrobePage> {
                         color: Colors.black87,
                       ),
                     ),
+
                   ),
                 ),
               ),
@@ -127,21 +189,22 @@ class _WardrobePageState extends State<WardrobePage> {
     final List<ClothingItem?> clothingItems = [];
     //import them from gallery as list
     final selectedImages = await getImagesFromGallery(picker);
+
     if (selectedImages == null || selectedImages.isEmpty) {
       return;
     }
+
     for (var img in selectedImages) {
       //for each image selected create a clothing item object
       clothingItems.add(await _buildClothingItemForm(img));
     }
-    print(clothingItems);
+
     for (var item in clothingItems) {
       if (item != null) {
         // if item is 
         _saveClothingItem(item);
       }
     }
-    print(clothingItems);
   }
 
   Future<List<XFile>?> getImagesFromGallery(ImagePicker picker) async {
@@ -213,10 +276,10 @@ class _WardrobePageState extends State<WardrobePage> {
                       initialValue: selectedType,
                       items: const [
                         DropdownMenuItem(value: ClothingType.top, child: Text('Top')),
-                        DropdownMenuItem(value: ClothingType.trousers, child: Text('Trousers')),
-                        DropdownMenuItem(value: ClothingType.jacket, child: Text('Jacket')),
+                        DropdownMenuItem(value: ClothingType.trouser, child: Text('Trouser')),
+                        DropdownMenuItem(value: ClothingType.shoe, child: Text('Shoe')),
+                        DropdownMenuItem(value: ClothingType.outwear, child: Text('Outwear')),
                         DropdownMenuItem(value: ClothingType.dress, child: Text('Dress')),
-                        DropdownMenuItem(value: ClothingType.shoes, child: Text('Shoes')),
                         DropdownMenuItem(value: ClothingType.accessory, child: Text('Accessory')),
                       ],
                       onChanged: (v) => setModalState(() => selectedType = v ?? ClothingType.top),
@@ -224,6 +287,9 @@ class _WardrobePageState extends State<WardrobePage> {
                     ),
 
                     const SizedBox(height: 8),
+
+
+                    //TODO: replace with tags
 
                     // description input
                     TextFormField(
@@ -291,7 +357,7 @@ class _WardrobePageState extends State<WardrobePage> {
     // generate file path
     final folder = type.displayName.toLowerCase(); // e.g. tops folder store top type clothing images
     final fileExt = img.path.split('.').last; // .png .jpg
-    final fileName = '${DateTime.now().toIso8601String()}.$fileExt';
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
     final filePath = '$folder/$fileName'; // optionally prefix with user id or folder
 
     // convert xfile to file
@@ -332,121 +398,5 @@ class _WardrobePageState extends State<WardrobePage> {
     } catch (e) {
       // handle/log error as appropriate
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: currentPageIndex,
-        children: _pages,
-      ),
-      // ADD clothing categories
-      bottomNavigationBar: BottomNavigationBar(
-        items: <BottomNavigationBarItem>[
-          //outfits
-          BottomNavigationBarItem(
-            icon: IconTheme(
-              data: IconThemeData(
-                color: null,
-              ),
-              child: ImageIcon(
-                AssetImage('assets/icons/outfit.png'),
-                size: 20,
-              ),
-            ),
-            activeIcon: IconTheme(
-              data: IconThemeData(
-                color: Color.fromARGB(255, 0, 183, 255),
-              ),
-              child: ImageIcon(
-                AssetImage('assets/icons/outfit.png'),
-                size: 35,
-              ),
-            ),
-            label: 'Outfits',
-          ),
-          // Clothing carousel
-          BottomNavigationBarItem(
-            icon: IconTheme(
-              data: IconThemeData(
-                color: null,
-              ),
-              child: ImageIcon(
-                AssetImage('assets/icons/clothing_carousel.png'),
-                size: 25,
-              ),
-            ),
-            activeIcon: IconTheme(
-              data: IconThemeData(
-                color: Color.fromARGB(255, 255, 215, 0),
-              ),
-              child: ImageIcon(
-                AssetImage('assets/icons/clothing_carousel.png'),
-                size: 35,
-              ),
-            ),
-            label: 'Dresser',
-          ),
-           // Create outfit button (only shows when on outfits page)
-          if (currentPageIndex == 0) ...[
-            BottomNavigationBarItem(
-              icon: IconTheme(
-                data: IconThemeData(
-                  color: null,
-                ),
-                child: ImageIcon(
-                  AssetImage('assets/icons/hanger_sparkle_outlined.png'),
-                  size: 15,
-                ),
-              ),
-              activeIcon: IconTheme(
-                data: IconThemeData(
-                  color: Color.fromARGB(255, 255, 215, 0),
-                ),
-                child: ImageIcon(
-                  AssetImage('assets/icons/hanger_sparkle_filled.png'),
-                  size: 25,
-                ),
-              ),
-              label: 'Create Outfit',
-            ),
-          ],
-          // Add Clothing button (only shows when on items page)
-          if (currentPageIndex == 1) ...[
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.photo_camera_back_outlined,
-                size: 25,
-              ),
-              label: 'Add Clothing',
-            )
-          ],
-        ],
-
-        currentIndex: currentPageIndex,
-        onTap: _handleBottomBarTap,
-        type: BottomNavigationBarType.fixed,
-        showUnselectedLabels: true,
-
-        selectedLabelStyle: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: Color.fromARGB(255, 0, 0, 0)
-        ),
-        unselectedLabelStyle: TextStyle(
-          color: const Color.fromARGB(255, 0, 0, 0),
-        ),
-
-        selectedItemColor: Color.fromARGB(255, 0, 0, 0),
-        unselectedItemColor: Colors.grey,
-  
-        selectedIconTheme: const IconThemeData(
-          color: Color.fromARGB(255, 0, 0, 0),
-        ),
-        unselectedIconTheme: const IconThemeData(
-          color: Colors.grey,
-        ),
-      ),
-    );
   }
 }

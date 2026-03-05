@@ -1,11 +1,11 @@
 enum ClothingType {
-  top('Tops'),
-  trousers('Trousers'),
-  jacket('Jackets'),
+  top('tops'),
+  trouser('trousers'),
+  outwear('Outwear'), // Maybe change to outwear?
   dress('Dresses'),
-  shoes('Shoes'),
+  shoe('Shoes'),
   accessory('Accessories'),
-  headwear('headwear');
+  headwear('Headwear');
 
   final String displayName;
   const ClothingType(this.displayName);
@@ -25,7 +25,6 @@ class ClothingItem {
   });
 
   Map<String, dynamic> toMap() {
-    print(toString());
     return {
       'type': type.name, // Changed from type.index to type.name (saves 'top', 'shoes', etc.)
       'imageUrl': imageUrl,
