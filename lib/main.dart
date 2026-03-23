@@ -15,7 +15,7 @@ import 'package:virtual_wardrobe/pages/profile.dart';
 
 
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
@@ -80,12 +80,13 @@ class VirtualWardrobeApp extends StatelessWidget {
           titleMedium: GoogleFonts.robotoMono(
             fontSize: 20,
             fontStyle: FontStyle.normal,
-            fontWeight: FontWeight.w300
+            fontWeight: FontWeight.w300,
+            color: Colors.black
           ),
           titleSmall: GoogleFonts.robotoMono(
             fontSize: 12,
             fontStyle: FontStyle.normal,
-            fontWeight: FontWeight.w400
+            fontWeight: FontWeight.bold
           ),
 
           //body
@@ -181,8 +182,8 @@ class _StartState extends State<Start> {
     //PageStorageKey to ensure widgets retain state.
     _pages = [
       const HomePage(key: PageStorageKey('home')),
-      const ProfilePage(key: PageStorageKey('profile')),
       const WardrobePage(key: PageStorageKey('wardrobe')),
+      const ProfilePage(key: PageStorageKey('profile')),
     ];
   }
 
@@ -227,22 +228,6 @@ class _StartState extends State<Start> {
             label: 'Home'
           ),
 
-          // Profile
-          NavigationDestination(
-            icon: const Icon(
-              Icons.person,
-              color: Colors.black,
-              size: 25
-            ),
-            selectedIcon: const Icon(
-              Icons.person,
-              size: 35,
-              color: Colors.orangeAccent,
-            ),
-
-            label: 'Profile'
-          ),
-
           // Wardrobe
           NavigationDestination(
             icon: const ImageIcon(
@@ -257,6 +242,22 @@ class _StartState extends State<Start> {
             ),
 
             label: 'Wardrobe'
+          ),
+
+          // Profile
+          NavigationDestination(
+            icon: const Icon(
+              Icons.person,
+              color: Colors.black,
+              size: 25
+            ),
+            selectedIcon: const Icon(
+              Icons.person,
+              size: 35,
+              color: Colors.orangeAccent,
+            ),
+
+            label: 'Profile'
           ),
 
         ],

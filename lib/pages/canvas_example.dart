@@ -366,7 +366,7 @@ class _TopBar extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: onSave != null
-                    ? const Color(0xFF1A1A1A)
+                    ? const Color.fromARGB(0, 7, 7, 7)
                     : const Color(0xFFCCCCCC),
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -398,6 +398,8 @@ class _CanvasItemWidget extends StatelessWidget {
   final void Function(double scale, double rotation) onScaleUpdate;
 
   static const double _baseSize = 140.0;
+  // Drag speed multiplier: >1 = faster movement, <1 = slower
+  static const double _dragSpeed = 8;
 
   const _CanvasItemWidget({
     super.key,
@@ -419,7 +421,7 @@ class _CanvasItemWidget extends StatelessWidget {
         onScaleUpdate: (details) {
            if (details.pointerCount == 1) {
             onSelect();
-            onPanDelta(details.focalPointDelta);
+            onPanDelta(details.focalPointDelta * _dragSpeed);
           }
           // Multi-finger -> scale/rotate
           else if (details.pointerCount >= 2) {
@@ -446,7 +448,8 @@ class _CanvasItemWidget extends StatelessWidget {
                               width: 22,
                               height: 22,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 1.5),
+                                strokeWidth: 1.5
+                              ),
                             ),
                           ),
                     errorBuilder: (_, _, _) => const Center(
@@ -467,7 +470,7 @@ class _CanvasItemWidget extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: [
                           BoxShadow(
-                            color: Color.fromRGBO(26, 26, 26, 1),
+                            color: Color.fromRGBO(26, 26, 26, 0),
                             blurRadius: 14,
                             offset: const Offset(0, 5),
                           )
@@ -690,7 +693,7 @@ class _ToolbarButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.color = const Color(0xFF1A1A1A),
+    this.color = const Color.fromARGB(255, 0, 0, 0),
   });
 
   @override
@@ -752,6 +755,79 @@ class _DotGridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+class InlinePainter extends CustomPainter {
+  const InlinePainter({
+    required this.brush,
+    required this.builder,
+    this.isAntiAlias = true,
+  });
+  final Paint brush;
+  final bool isAntiAlias;
+  final void Function(Paint paint, Canvas canvas, Rect rect) builder;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    brush.isAntiAlias = isAntiAlias;
+    canvas.save();
+    builder(brush, canvas, rect);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
+  }
+}
+
+
+class GridBackgroundBuilder extends StatelessWidget {
+  const GridBackgroundBuilder({
+    super.key,
+    required this.cellWidth,
+    required this.cellHeight,
+    required this.viewport,
+  });
+
+  final double cellWidth;
+  final double cellHeight;
+  final Rect viewport;
+
+  @override
+  Widget build(BuildContext context) {
+    final int firstRow = (viewport.top / cellHeight).floor();
+    final int lastRow = (viewport.bottom / cellHeight).ceil();
+    final int firstCol = (viewport.left / cellWidth).floor();
+    final int lastCol = (viewport.right / cellWidth).ceil();
+
+    final colors = Theme.of(context).primaryColor.withValues(alpha: 0.05);
+    return Material(
+      color: colors,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          for (int row = firstRow; row < lastRow; row++)
+            for (int col = firstCol; col < lastCol; col++)
+              Positioned(
+                left: col * cellWidth,
+                top: row * cellHeight,
+                child: Container(
+                  height: cellHeight,
+                  width: cellWidth,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Color(0xFFD0CDC8).withValues(alpha: 0),
+                      width: 1,
+                    ),
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────

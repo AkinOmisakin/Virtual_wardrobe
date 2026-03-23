@@ -1,26 +1,25 @@
-// import 'package:path/path.dart' as p;
-// import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-
-// import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// components
 import 'package:virtual_wardrobe/components/Expandable_FAB.dart';
 
+//pages
 import 'package:virtual_wardrobe/pages/fits.dart';
 import 'package:virtual_wardrobe/pages/storage.dart';
 import 'package:virtual_wardrobe/pages/canvas_example.dart';
+import 'package:virtual_wardrobe/pages/canvas.dart';
 
+//models
 import 'package:virtual_wardrobe/models/clothing_item.dart';
 
-// import 'package:virtual_wardrobe/components/Expandable_FAB.dart';
 
+//services
 import 'package:virtual_wardrobe/services/itemprovider.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class WardrobePage extends StatefulWidget {
   const WardrobePage({super.key});
@@ -38,8 +37,8 @@ class _WardrobePageState extends State<WardrobePage> {
     _pages = [
       OutfitsPage(),
       ItemsPage(),
-      OutfitCanvasPage(),
-      // ,
+      // OutfitCanvasPage(),
+      CanvasScreen(),
     ];
   }
 
@@ -50,7 +49,7 @@ class _WardrobePageState extends State<WardrobePage> {
       child: DefaultTabController(
         length: _pages.length,
         child: Scaffold(
-          appBar: AppBar(
+          appBar: AppBar( //https://api.flutter.dev/flutter/material/AppBar-class.html
             bottom: const TabBar(
               tabs: [
 
