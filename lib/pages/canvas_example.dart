@@ -71,6 +71,7 @@ class _OutfitCanvasPageState extends State<OutfitCanvasPage>
         clothingItem: item,
         position: offset,
       ));
+      
     });
   }
 
@@ -421,7 +422,7 @@ class _CanvasItemWidget extends StatelessWidget {
         onScaleUpdate: (details) {
            if (details.pointerCount == 1) {
             onSelect();
-            onPanDelta(details.focalPointDelta * _dragSpeed);
+            onPanDelta(details.focalPointDelta);
           }
           // Multi-finger -> scale/rotate
           else if (details.pointerCount >= 2) {
@@ -559,6 +560,7 @@ class _InventoryTray extends StatelessWidget {
           // Category filter chips
           SizedBox(
             height: 40,
+            // Filtered category list, EG: All, Tops, Trousers, Shoes, etc.
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding:
