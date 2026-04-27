@@ -1,19 +1,18 @@
-
 import 'package:flutter/material.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-// import 'package:google_fonts/google_fonts.dart';
+
+import 'package:virtual_wardrobe/auth/auth_gate.dart';
 import 'package:virtual_wardrobe/pages/home.dart';
 import 'package:virtual_wardrobe/pages/wardrobe.dart';
 import 'package:virtual_wardrobe/pages/profile.dart';
-
-
-
-
+import 'package:virtual_wardrobe/services/itemprovider.dart';
+import 'package:virtual_wardrobe/services/outfitprovider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,37 +21,23 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    await dotenv.load(fileName: '.env');
 
-    await dotenv.load(fileName: ".env");
-
-    final supabaseUrl = dotenv.env['SUPABASE_URL'];
+    final supabaseUrl     = dotenv.env['SUPABASE_URL'];
     final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
-
     if (supabaseUrl == null || supabaseAnonKey == null) {
-      throw Exception(
-        'Missing SUPABASE_URL or SUPABASE_ANON_KEY in .env'
-      );
+      throw Exception('Missing SUPABASE_URL or SUPABASE_ANON_KEY in .env');
     }
-
-    await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-    );
+    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
 
     runApp(const VirtualWardrobeApp());
-
   } catch (e) {
     debugPrint('Initialization error: $e');
   }
 }
 
-
 class VirtualWardrobeApp extends StatelessWidget {
   const VirtualWardrobeApp({super.key});
-
-  // TODOLIST: 
-  /* 1. Change the gender icon in the bottom navigation bar to a more custom 
-  user icon (woman or neutral)*/
 
   @override
   Widget build(BuildContext context) {
@@ -65,212 +50,183 @@ class VirtualWardrobeApp extends StatelessWidget {
         secondaryHeaderColor: Colors.black,
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
-        splashFactory: NoSplash.splashFactory, // disable splash animation on buttons
+        splashFactory: NoSplash.splashFactory,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        
-        // text theme
         textTheme: TextTheme(
-          
-          // title
           titleLarge: GoogleFonts.robotoMono(
-            fontSize: 30,
-            fontStyle: FontStyle.normal,
-            fontWeight: FontWeight.w300
-          ),
+              fontSize: 30, fontWeight: FontWeight.w300),
           titleMedium: GoogleFonts.robotoMono(
-            fontSize: 20,
-            fontStyle: FontStyle.normal,
-            fontWeight: FontWeight.w300,
-            color: Colors.black
-          ),
+              fontSize: 20, fontWeight: FontWeight.w300, color: Colors.black),
           titleSmall: GoogleFonts.robotoMono(
-            fontSize: 12,
-            fontStyle: FontStyle.normal,
-            fontWeight: FontWeight.bold
-          ),
-
-          //body
+              fontSize: 12, fontWeight: FontWeight.bold),
           bodyMedium: GoogleFonts.robotoMono(
-            fontSize: 10,
-            fontStyle: FontStyle.italic,
-            fontWeight: FontWeight.w100
-          ),
-
-          // bodySmall: GoogleFonts.roboto(
-          //   fontSize: 10,
-          //   fontStyle: FontStyle.italic,
-          //   fontWeight: FontWeight.w700
-          // ),
-
-          // label
-          labelLarge: TextStyle(
-            fontSize: 17,
-            fontStyle: FontStyle.normal,
-            fontWeight: FontWeight.w100
-          ),
+              fontSize: 10,
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w100),
+          labelLarge: const TextStyle(
+              fontSize: 17, fontWeight: FontWeight.w100),
           labelMedium: GoogleFonts.robotoMono(
-            fontSize: 13,
-            fontStyle: FontStyle.normal,
-            fontWeight: FontWeight.w500
-          ),
+              fontSize: 13, fontWeight: FontWeight.w500),
           labelSmall: GoogleFonts.robotoMono(
-            fontSize: 10,
-            fontStyle: FontStyle.normal,
-            fontWeight: FontWeight.w500,
-            // color: Colors
-          ),
+              fontSize: 10, fontWeight: FontWeight.w500),
         ),
-
-        // appbar theme
-        appBarTheme: AppBarTheme(
+        appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           shadowColor: Colors.transparent,
           elevation: 4,
           surfaceTintColor: Color.fromARGB(50, 158, 158, 158),
         ),
-
-        //tab bar theme
         tabBarTheme: TabBarThemeData(
-          //unselected
           unselectedLabelColor: Colors.grey,
           dividerColor: Colors.grey[400],
-          // splashFactory: NoSplash.splashFactory,
-          // unselectedLabelStyle: Theme.of(context).textTheme.bodySmall,
-          //selected
           labelColor: Colors.black,
           indicatorColor: Colors.black,
-          // labelStyle: Theme.of(context).textTheme.bodyMedium
-          //customize indicator further
-          // indicator: BoxDecoration(
-          //   color: Colors.transparent,
-          // ),
         ),
-
-        //navigationbar theme
         navigationBarTheme: NavigationBarThemeData(
-          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected, // sets visibility of labels in the bottom navigation bar
-          backgroundColor: Color.fromARGB(255, 255, 255, 255),
-          indicatorColor: Color.fromARGB(255, 255, 255, 255),
+          labelBehavior:
+              NavigationDestinationLabelBehavior.onlyShowSelected,
+          backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+          indicatorColor: const Color.fromARGB(255, 255, 255, 255),
           elevation: 4,
           labelTextStyle: WidgetStatePropertyAll(
-            Theme.of(context).textTheme.labelSmall
+            GoogleFonts.robotoMono(
+                fontSize: 10, fontWeight: FontWeight.w500),
           ),
         ),
-  
-        scaffoldBackgroundColor: Colors.white
+        scaffoldBackgroundColor: Colors.white,
       ),
-      home: Start(),
+      home: const AuthGate(),
     );
   }
 }
 
-class Start extends StatefulWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// App shell — providers live here so every tab shares the same instances
+// ─────────────────────────────────────────────────────────────────────────────
+
+class Start extends StatelessWidget {
   const Start({super.key});
 
   @override
-  State<Start> createState() => _StartState();
+  Widget build(BuildContext context) {
+    // ItemProvider is created once here and shared across all tabs.
+    // _OutfitProviderBridge reads ItemProvider and creates OutfitProvider,
+    // so both HomePage and WardrobePage get the same resolved outfits.
+    return ChangeNotifierProvider(
+      create: (_) => ItemProvider(),
+      child: const _OutfitProviderBridge(
+        child: _Shell(),
+      ),
+    );
+  }
 }
 
-class _StartState extends State<Start> {
-  int currentPageIndex = 0; // Tracks the currently selected page index
-        
-  late final List<Widget> _pages; // List of pages for navigation
+/// Bridges ItemProvider → OutfitProvider, identical to the one in wardrobe.dart
+/// but now lifted to the Start level so HomePage can consume OutfitProvider too.
+class _OutfitProviderBridge extends StatefulWidget {
+  const _OutfitProviderBridge({required this.child});
+  final Widget child;
+
+  @override
+  State<_OutfitProviderBridge> createState() => _OutfitProviderBridgeState();
+}
+
+class _OutfitProviderBridgeState extends State<_OutfitProviderBridge> {
+  OutfitProvider? _outfitProvider;
+
+  @override
+  Widget build(BuildContext context) {
+    final itemProvider = Provider.of<ItemProvider>(context);
+
+    if (_outfitProvider == null) {
+      _outfitProvider = OutfitProvider(allItems: itemProvider.items);
+    } else {
+      _outfitProvider!.updateItems(itemProvider.items);
+    }
+
+    return ChangeNotifierProvider<OutfitProvider>.value(
+      value: _outfitProvider!,
+      child: widget.child,
+    );
+  }
+
+  @override
+  void dispose() {
+    _outfitProvider?.dispose();
+    super.dispose();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Navigation shell
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Shell extends StatefulWidget {
+  const _Shell();
+
+  @override
+  State<_Shell> createState() => _ShellState();
+}
+
+class _ShellState extends State<_Shell> {
+  int _currentIndex = 0;
+  late final List<Widget> _pages;
+  final String userId = FirebaseAuth.instance.currentUser!.uid;
+
 
   @override
   void initState() {
     super.initState();
-    //PageStorageKey to ensure widgets retain state.
     _pages = [
-      const HomePage(key: PageStorageKey('home')),
-      const WardrobePage(key: PageStorageKey('wardrobe')),
-      const ProfilePage(key: PageStorageKey('profile')),
+      HomePage(key: PageStorageKey('home')),
+      // WardrobePage no longer needs its own OutfitProviderBridge — it reads
+      // from the one created above in Start.
+      WardrobePage(key: PageStorageKey('wardrobe'), userId: userId),
+      ProfilePage(key: PageStorageKey('profile'), userId: userId),
     ];
   }
 
-  // Updates the current page index based on user selection
-  void _navigationBar(int index) {
-    setState(() {
-      currentPageIndex = index;
-    });
-  }
-
-  // Builds the main scaffold with bottom navigation bar
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
-        index: currentPageIndex,
-        children: List<Widget>.generate(
+        index: _currentIndex,
+        children: List.generate(
           _pages.length,
           (i) => TickerMode(
-            enabled: currentPageIndex == i,
+            enabled: _currentIndex == i,
             child: _pages[i],
           ),
         ),
       ),
-      
       bottomNavigationBar: NavigationBar(
-        destinations: <NavigationDestination> [
-
-          // Home/Display page 
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (i) => setState(() => _currentIndex = i),
+        animationDuration: const Duration(milliseconds: 200),
+        destinations: const [
           NavigationDestination(
-            icon: const Icon(
-              Icons.home_filled,
-              color: Colors.black,
-              size: 25,
-            ),
-            selectedIcon: const Icon(
-              Icons.home_filled,
-              color: Colors.lightGreenAccent,
-              size: 35,
-            ),
-            
-            label: 'Home'
+            icon: Icon(Icons.home_filled, color: Colors.black, size: 25),
+            selectedIcon: Icon(Icons.home_filled,
+                color: Colors.lightGreenAccent, size: 35),
+            label: 'Home',
           ),
-
-          // Wardrobe
           NavigationDestination(
-            icon: const ImageIcon(
-              AssetImage('assets/icons/wardrobe_person.png'),
-              color: Colors.black,
-              size: 25,
-            ),
-            selectedIcon: const ImageIcon(
-              AssetImage('assets/icons/wardrobe_opened.png'),
-              color: Colors.purpleAccent,
-              size: 30,
-            ),
-
-            label: 'Wardrobe'
+            icon: ImageIcon(AssetImage('assets/icons/wardrobe_person.png'),
+                color: Colors.black, size: 25),
+            selectedIcon: ImageIcon(
+                AssetImage('assets/icons/wardrobe_opened.png'),
+                color: Colors.purpleAccent,
+                size: 30),
+            label: 'Wardrobe',
           ),
-
-          // Profile
           NavigationDestination(
-            icon: const Icon(
-              Icons.person,
-              color: Colors.black,
-              size: 25
-            ),
-            selectedIcon: const Icon(
-              Icons.person,
-              size: 35,
-              color: Colors.orangeAccent,
-            ),
-
-            label: 'Profile'
+            icon: Icon(Icons.person, color: Colors.black, size: 25),
+            selectedIcon:
+                Icon(Icons.person, size: 35, color: Colors.orangeAccent),
+            label: 'Profile',
           ),
-
         ],
-
-        // handle navigation bar item selection
-        selectedIndex: currentPageIndex,
-        onDestinationSelected: _navigationBar,
-        // animation
-        animationDuration: Duration(milliseconds: 200),
-
       ),
     );
   }
 }
-
-

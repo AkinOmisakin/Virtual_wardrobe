@@ -85,7 +85,7 @@ class Outfit {
 
   // ── serialisation ──────────────────────────────────────────────────────────
 
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toMap(String userId) {
     return {
       'name': name,
       'itemIds': itemIds,
@@ -93,6 +93,7 @@ class Outfit {
         'canvasItems': canvasItems!.map((c) => c.toMap()).toList(),
       'createdAt': createdAt.toIso8601String(),
       if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
+      'userId': userId,
     };
   }
 

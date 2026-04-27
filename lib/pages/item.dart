@@ -5,15 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ItemPage extends StatefulWidget {
   final ClothingItem? item;
+  final String userId;
   final XFile? img;
   // isEditing = true  → viewing/editing an existing item (item must be non-null)
   // isEditing = false → creating a brand-new item (img may be pre-supplied)
   final bool isEditing;
 
-  const ItemPage({super.key, this.item, this.img, this.isEditing = false})
+  const ItemPage({super.key, this.item, this.img, this.isEditing = false, required this.userId})
       : assert(
           isEditing == false || item != null,
           'If isEditing is true, item must be provided',
@@ -148,7 +150,7 @@ class _ItemPageState extends State<ItemPage> {
         );
         await FirebaseFirestore.instance
             .collection('clothes')
-            .add(newItem.toMap());
+            .add(newItem.toMap(widget.userId));
       }
 
       if (mounted) Navigator.of(context).pop(true);

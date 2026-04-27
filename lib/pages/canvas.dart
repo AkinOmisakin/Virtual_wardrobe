@@ -17,7 +17,8 @@ import 'package:provider/provider.dart';
 import 'package:virtual_wardrobe/services/itemprovider.dart';
 
 class CanvasScreen extends StatefulWidget {
-  const CanvasScreen({super.key});
+  const CanvasScreen({super.key, required this.userId});
+  final String userId;
 
   @override
   State<CanvasScreen> createState() => _CanvasScreenState();
@@ -69,6 +70,7 @@ class _CanvasScreenState extends State<CanvasScreen>
                 if (_selectedCanvasItem != null) _showToolBar(),
                 // Save button — only visible when there are items on the canvas
                 if (_itemsInCanvas.isNotEmpty) _buildSaveButton(),
+                _clearCanvasButton(),
               ],
             ),
           ),
@@ -93,25 +95,56 @@ class _CanvasScreenState extends State<CanvasScreen>
     );
   }
 
+  // ----------- clear canvas button ------------
+
+  Widget _clearCanvasButton() {
+    return Positioned(
+      bottom: 15,
+      left: 280,
+      // right: 
+      child: AnimatedOpacity(
+        opacity: _itemsInCanvas.isEmpty ? 0.0 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        child: ClipRRect(
+          clipBehavior: Clip.antiAlias,
+          child: IconButton(
+            onPressed: _clearCanvas, 
+            icon: const Icon(
+              Icons.cleaning_services_sharp,
+              color: Colors.black,
+              shadows: [Shadow(color: Colors.grey, blurRadius: 45)],
+              ),
+            )
+        )
+    )
+    );
+    
+    
+  }
+
   // ── save button overlay ────────────────────────────────────────────────────
 
   Widget _buildSaveButton() {
     return Positioned(
-      top: 16,
-      right: 16,
+      bottom: 20,
+      right: 135,
+      left: 135,
       child: AnimatedOpacity(
         opacity: _itemsInCanvas.isEmpty ? 0.0 : 1.0,
         duration: const Duration(milliseconds: 200),
-        child: Material(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          clipBehavior: Clip.antiAlias,
+          child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: _saving ? null : _onSaveOutfit,
-            borderRadius: BorderRadius.circular(24),
+            
             child: Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.85),
+                color: const Color.fromARGB(255, 209, 82, 231),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: _saving
@@ -125,21 +158,24 @@ class _CanvasScreenState extends State<CanvasScreen>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.bookmark_add_outlined,
-                            color: Colors.white, size: 16),
+                            color: Colors.black, size: 16),
                         SizedBox(width: 6),
                         Text('Save outfit',
                             style: TextStyle(
-                                color: Colors.white,
+                                color: Colors.black,
                                 fontSize: 13,
-                                fontWeight: FontWeight.w500)),
+                                fontWeight: FontWeight.bold)),
                       ],
                     ),
             ),
           ),
         ),
+        )
+        
       ),
     );
   }
+
 
   // ── save outfit flow ───────────────────────────────────────────────────────
 
@@ -230,7 +266,7 @@ class _CanvasScreenState extends State<CanvasScreen>
 
     await FirebaseFirestore.instance
         .collection('outfits')
-        .add(outfit.toMap());
+        .add(outfit.toMap(widget.userId));
   }
 
   void _showSnack(String message) {
@@ -450,7 +486,6 @@ class _CanvasScreenState extends State<CanvasScreen>
                       onSelected: (_) {
                         setModalState(() {
                           _selectedFilter = opt;
-                          _selectedItems.clear();
                         });
                       },
                       selectedColor: Colors.black,
@@ -597,6 +632,12 @@ class _CanvasScreenState extends State<CanvasScreen>
     });
   }
 
+  void _clearCanvas() {
+    setState(() {
+      _itemsInCanvas.clear();
+    });
+  }
+
   void _duplicate(CanvasItem item) {
     setState(() {
       _itemsInCanvas.add(CanvasItem(
@@ -698,6 +739,10 @@ class _CanvasScreenState extends State<CanvasScreen>
                 IconButton(
                   onPressed: () => _delete(_selectedCanvasItem!),
                   icon: const Icon(Icons.delete),
+                ),
+                IconButton(
+                  onPressed: () => _duplicate(_selectedCanvasItem!),
+                  icon: const Icon(Icons.copy),
                 ),
                 IconButton(
                   onPressed: () => _duplicate(_selectedCanvasItem!),

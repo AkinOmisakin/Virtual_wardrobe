@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 
 class ItemProvider extends ChangeNotifier {
   final String? collection;
+  final String? userId = FirebaseAuth.instance.currentUser!.uid;
   ItemProvider({this.collection}) {
     // Auto-subscribe when provider is created
     subscribe();
@@ -32,6 +34,7 @@ class ItemProvider extends ChangeNotifier {
 
     _subscription = FirebaseFirestore.instance
         .collection(collectionName)
+        .where('userId', isEqualTo: userId)
         .snapshots()
         .listen((snapshot) {
       _items = snapshot.docs

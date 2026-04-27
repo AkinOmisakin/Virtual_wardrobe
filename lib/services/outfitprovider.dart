@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:virtual_wardrobe/models/outfit.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// An [Outfit] paired with the resolved [ClothingItem] objects for its items.
 /// This is what [OutfitProvider] exposes to the UI — no extra Firestore reads
@@ -17,6 +18,7 @@ class ResolvedOutfit {
 }
 
 class OutfitProvider extends ChangeNotifier {
+  final String? userId = FirebaseAuth.instance.currentUser!.uid;
   OutfitProvider({required this.allItems}) {
     _subscribe();
   }
@@ -43,7 +45,8 @@ class OutfitProvider extends ChangeNotifier {
 
     _subscription = FirebaseFirestore.instance
         .collection('outfits')
-        .orderBy('createdAt', descending: true)
+        .where('userId', isEqualTo: userId)
+        // .orderBy('updatedAt', descending: true)
         .snapshots()
         .listen(
       (snapshot) {

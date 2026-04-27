@@ -1,7 +1,7 @@
 enum ClothingType {
   top('tops'),
   trouser('trousers'),
-  outwear('Outwear'), // Maybe change to outwear?
+  outwear('Outwear'),
   dress('Dresses'),
   shoe('Shoes'),
   accessory('Accessories'),
@@ -17,64 +17,72 @@ class ClothingItem {
   final String imageUrl;
   final String? description;
 
+  /// AI-generated tags, e.g. ['casual', 'summer', 'cotton']
+  final List<String> tags;
+
+  /// AI-detected colours, e.g. ['white', 'navy']
+  final List<String> colours;
+
+  /// AI-detected style, e.g. 'streetwear', 'formal', 'minimalist'
+  final String? style;
+
   ClothingItem({
     this.id,
     required this.type,
     required this.imageUrl,
     this.description = '',
+    this.tags = const [],
+    this.colours = const [],
+    this.style,
   });
 
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toMap(String userId) {
     return {
-      'type': type.name, // Changed from type.index to type.name (saves 'top', 'shoes', etc.)
-      'imageUrl': imageUrl,
+      'type':        type.name,
+      'imageUrl':    imageUrl,
       'description': description,
-      'createdAt': DateTime.now().toIso8601String(),
+      'tags':        tags,
+      'colours':     colours,
+      'style':       style,
+      'createdAt':   DateTime.now().toIso8601String(),
+      'userId': userId
     };
-
   }
 
   static ClothingType _parseClothingType(dynamic input) {
-    if (input == null) return ClothingType.top; // fallback
+    if (input == null) return ClothingType.top;
     final s = input.toString().trim();
-
-    // exact byName (throws if not found)
-    try {
-      return ClothingType.values.byName(s);
-    } catch (_) {}
-
-    // case-insensitive match against enum name
+    try { return ClothingType.values.byName(s); } catch (_) {}
     for (final t in ClothingType.values) {
       if (t.name.toLowerCase() == s.toLowerCase()) return t;
     }
-
-    // case-insensitive match against displayName (e.g. "Shoes", "Jackets")
     for (final t in ClothingType.values) {
       if (t.displayName.toLowerCase() == s.toLowerCase()) return t;
     }
-
-    // try singular/plural variants (remove trailing 's')
     final singular = s.toLowerCase().replaceAll(RegExp(r's$'), '');
     for (final t in ClothingType.values) {
       if (t.name.toLowerCase() == singular) return t;
       if (t.displayName.toLowerCase() == singular) return t;
     }
-
-    // final fallback
     return ClothingType.top;
   }
 
   factory ClothingItem.fromMap(Map<String, dynamic> map, {String? docId}) {
+    List<String> _toStringList(dynamic v) =>
+        v is List ? v.map((e) => e.toString()).toList() : [];
+
     return ClothingItem(
-      id: docId,
-      type: _parseClothingType(map['type']),
-      imageUrl: map['imageUrl'],
-      description: map['description']
+      id:          docId,
+      type:        _parseClothingType(map['type']),
+      imageUrl:    map['imageUrl'] as String? ?? '',
+      description: map['description'] as String?,
+      tags:        _toStringList(map['tags']),
+      colours:     _toStringList(map['colours']),
+      style:       map['style'] as String?,
     );
   }
 
   @override
-  String toString() {
-    return 'ClothingItem{id: $id, type: $type, imageUrl: $imageUrl, description: $description}';
-  }
+  String toString() => 'ClothingItem{id: $id, type: $type, '
+      'imageUrl: $imageUrl, tags: $tags, colours: $colours, style: $style}';
 }

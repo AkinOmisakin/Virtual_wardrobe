@@ -12,7 +12,8 @@ import 'package:provider/provider.dart';
 import 'package:virtual_wardrobe/services/itemprovider.dart';
 
 class ItemsPage extends StatefulWidget {
-  const ItemsPage({super.key});
+  const ItemsPage({super.key, required this.userId});
+  final String userId;
 
   @override
   State<ItemsPage> createState() => _ItemsPageState();
@@ -36,6 +37,18 @@ class _ItemsPageState extends State<ItemsPage>  {
     }
 
     final items = provider.items;
+    if (items.isEmpty) {
+      return Scaffold(
+        body: Center(
+          child: Text(
+            'Your wardrobe is empty.\nTap the + button to add some items!',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+      );
+    }
+
     final categories = ClothesViewModel.categorizeItems(items);
 
     return Scaffold(
@@ -93,7 +106,7 @@ class _ItemsPageState extends State<ItemsPage>  {
         itemCount: items.length,
         itemBuilder: (context, index) {
           final item = items[index];
-          return InkWell(
+          return InkWell( 
             onTap: () => Navigator.of(context).push(_routeToEditItemPage(item)),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
@@ -119,7 +132,7 @@ class _ItemsPageState extends State<ItemsPage>  {
 
   Route<void> _routeToEditItemPage(ClothingItem item) {
     return PageRouteBuilder(
-      pageBuilder: (context, animation, secondaryAnimation) => ItemPage(item: item, isEditing: true),
+      pageBuilder: (context, animation, secondaryAnimation) => ItemPage(item: item, isEditing: true, userId: widget.userId),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         // animate page from the bottom
         const begin = Offset(0.0, 1.0);
