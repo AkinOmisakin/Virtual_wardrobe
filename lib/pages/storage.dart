@@ -113,14 +113,15 @@ class _ItemsPageState extends State<ItemsPage>  {
               child: AspectRatio(
                 aspectRatio: 1,
                 child: Container(
-                  padding: EdgeInsets.all(10.0),
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(10.0),
                   alignment: Alignment.center,
                   child: CachedNetworkImage(
-                    imageUrl: item.imageUrl, // Use the URL from Firestore
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Center(child: CircularProgressIndicator()),
-                    errorWidget: (context, url, error) => Icon(Icons.broken_image),
-                  )
+                    imageUrl: item.imageUrl,
+                    fit: BoxFit.contain,
+                    placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                    errorWidget: (context, url, error) => const Icon(Icons.broken_image),
+                  ),
                 )
               )
             )

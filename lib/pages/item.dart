@@ -1,11 +1,9 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class ItemPage extends StatefulWidget {
   final ClothingItem? item;
@@ -131,26 +129,23 @@ class _ItemPageState extends State<ItemPage> {
       final description = _descController.text.trim();
 
       if (widget.item?.id != null) {
-        // ── update existing Firestore document ──
-        await FirebaseFirestore.instance
-            .collection('clothes')
-            .doc(widget.item!.id)
+        await Supabase.instance.client
+            .from('clothing_items')
             .update({
-          'type': _selectedType.name,
-          'imageUrl': imageUrl,
-          'description': description,
-          'updatedAt': DateTime.now().toIso8601String(),
-        });
+              'type':        _selectedType.name,
+              'image_url':   imageUrl,
+              'description': description,
+            })
+            .eq('id', widget.item!.id!);
       } else {
-        // ── create new Firestore document ──
         final newItem = ClothingItem(
-          type: _selectedType,
-          imageUrl: imageUrl ?? '',
+          type:        _selectedType,
+          imageUrl:    imageUrl ?? '',
           description: description,
         );
-        await FirebaseFirestore.instance
-            .collection('clothes')
-            .add(newItem.toMap(widget.userId));
+        await Supabase.instance.client
+            .from('clothing_items')
+            .insert(newItem.toMap(widget.userId));
       }
 
       if (mounted) Navigator.of(context).pop(true);
@@ -190,10 +185,10 @@ class _ItemPageState extends State<ItemPage> {
     if (confirm != true) return;
 
     try {
-      await FirebaseFirestore.instance
-          .collection('clothes')
-          .doc(widget.item!.id)
-          .delete();
+      await Supabase.instance.client
+          .from('clothing_items')
+          .delete()
+          .eq('id', widget.item!.id!);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {

@@ -31,7 +31,7 @@ class OutfitsPage extends StatelessWidget {
       body: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 16),
         itemCount: provider.outfits.length,
-        separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+        separatorBuilder: (_, _) => const Divider(height: 1, indent: 16, endIndent: 16),
         itemBuilder: (context, index) {
           return _OutfitCard(resolved: provider.outfits[index]);
         },
@@ -229,30 +229,30 @@ class _OutfitCard extends StatelessWidget {
 
 // ── missing items note ────────────────────────────────────────────────────────
 
-class _MissingItemsNote extends StatelessWidget {
-  const _MissingItemsNote();
+// class _MissingItemsNote extends StatelessWidget {
+//   const _MissingItemsNote();
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Text(
-          'Items have been removed from your wardrobe',
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: Colors.grey[500]),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       height: 120,
+//       decoration: BoxDecoration(
+//         color: Colors.grey[100],
+//         borderRadius: BorderRadius.circular(12),
+//       ),
+//       child: Center(
+//         child: Text(
+//           'Items have been removed from your wardrobe',
+//           style: Theme.of(context)
+//               .textTheme
+//               .bodyMedium
+//               ?.copyWith(color: Colors.grey[500]),
+//           textAlign: TextAlign.center,
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 // ── canvas preview ────────────────────────────────────────────────────────────
 

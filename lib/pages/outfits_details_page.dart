@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:virtual_wardrobe/models/outfit.dart';
+// import 'package:virtual_wardrobe/models/outfit.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
 import 'package:virtual_wardrobe/services/outfitprovider.dart';
 

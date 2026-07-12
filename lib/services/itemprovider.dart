@@ -1,82 +1,73 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
 
 class ItemProvider extends ChangeNotifier {
-  final String? collection;
-  final String? userId = FirebaseAuth.instance.currentUser!.uid;
-  ItemProvider({this.collection}) {
-    // Auto-subscribe when provider is created
-    subscribe();
+  final String? userId = Supabase.instance.client.auth.currentUser?.id;
+
+  ItemProvider() {
+    _init();
   }
 
   List<ClothingItem> _items = [];
-  StreamSubscription<QuerySnapshot>? _subscription;
+  RealtimeChannel? _channel;
   bool _isLoading = true;
   String? _error;
 
-  // Exposed getters
   List<ClothingItem> get items => _items;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // Return the collection name or default to 'clothes'
-  String get collectionName => collection ?? 'clothes';
-
-  void subscribe() {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    _subscription = FirebaseFirestore.instance
-        .collection(collectionName)
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .listen((snapshot) {
-      _items = snapshot.docs
-          .map((doc) => ClothingItem.fromMap(doc.data(), docId: doc.id))
-          .toList();
-      _isLoading = false;
-      debugPrint('Loaded ${_items.length} clothing items from Firestore');
-      // Use a proper logging mechanism in production, or remove this line.
-      // Example: logger.info('Loaded ${_items.length} clothing items from Firestore');
-      notifyListeners();
-    }, onError: (e) {
-      _error = e.toString();
+  Future<void> _init() async {
+    if (userId == null) {
       _isLoading = false;
       notifyListeners();
-    });
+      return;
+    }
+    await _fetch();
+    _watch();
   }
 
-  void unsubscribe() {
-    _subscription?.cancel();
-    _subscription = null;
-  }
-
-  // Optional: one-shot refresh
-  Future<void> refresh() async {
+  Future<void> _fetch() async {
     try {
-      _isLoading = true;
-      notifyListeners();
-      final snapshot = await FirebaseFirestore.instance.collection(collectionName).get();
-      _items = snapshot.docs
-          .map((doc) => ClothingItem.fromMap(doc.data(), docId: doc.id))
+      final data = await Supabase.instance.client
+          .from('clothing_items')
+          .select()
+          .eq('user_id', userId!)
+          .order('created_at', ascending: false);
+
+      _items = (data as List)
+          .map((e) => ClothingItem.fromMap(e as Map<String, dynamic>))
           .toList();
+      _isLoading = false;
+      _error = null;
+      notifyListeners();
     } catch (e) {
-      debugPrint('Error refreshing items: $e');
-    } finally {
+      _error = e.toString();
       _isLoading = false;
       notifyListeners();
     }
   }
 
+  void _watch() {
+    // No channel filter: DELETE events only carry the PK in the old record,
+    // so a user_id filter never matches. _fetch() already scopes by user_id.
+    _channel = Supabase.instance.client
+        .channel('clothing_items_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'clothing_items',
+          callback: (_) => _fetch(),
+        )
+        .subscribe();
+  }
+
   @override
   void dispose() {
-    unsubscribe();
+    if (_channel != null) {
+      Supabase.instance.client.removeChannel(_channel!);
+    }
     super.dispose();
   }
 }

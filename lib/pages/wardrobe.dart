@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // components
@@ -12,6 +11,7 @@ import 'package:virtual_wardrobe/components/Expandable_FAB.dart';
 import 'package:virtual_wardrobe/pages/fits.dart';
 import 'package:virtual_wardrobe/pages/storage.dart';
 import 'package:virtual_wardrobe/pages/canvas.dart';
+import 'package:virtual_wardrobe/pages/tryon_page.dart';
 
 // models
 import 'package:virtual_wardrobe/models/clothing_item.dart';
@@ -67,6 +67,20 @@ class _WardrobePageState extends State<WardrobePage> {
               onPressed: _onAddClothing,
               icon: const Icon(Icons.photo_camera_back_outlined),
             ),
+            ActionButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => const TryOnPage(),
+                  ),
+                );
+              },
+              icon: const ImageIcon(
+                color: Color.fromARGB(255, 250, 167, 43),
+                AssetImage('assets/icons/get-dressed.png')
+              ),
+            ),
+            
           ],
         ),
         body: TabBarView(
@@ -98,7 +112,11 @@ class _WardrobePageState extends State<WardrobePage> {
               title: const Text('Camera'),
               onTap: () async {
                 Navigator.pop(ctx);
-                final img = await picker.pickImage(source: ImageSource.camera);
+                final img = await picker.pickImage(
+                  source: ImageSource.camera,
+                  maxWidth: 1920,
+                  maxHeight: 1920,
+                );
                 if (img != null && mounted) await _processAndShowForm(File(img.path));
               },
             ),
@@ -107,7 +125,10 @@ class _WardrobePageState extends State<WardrobePage> {
               title: const Text('Photos'),
               onTap: () async {
                 Navigator.pop(ctx);
-                final imgs = await picker.pickMultiImage();
+                final imgs = await picker.pickMultiImage(
+                  maxWidth: 1920,
+                  maxHeight: 1920,
+                );
                 for (final img in imgs) {
                   if (!mounted) return;
                   await _processAndShowForm(File(img.path));
@@ -143,6 +164,7 @@ class _WardrobePageState extends State<WardrobePage> {
   /// then opens the pre-filled clothing form.
   Future<void> _processAndShowForm(File imageFile) async {
     // Show the processing screen (not dismissible).
+    if (!mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -156,9 +178,14 @@ class _WardrobePageState extends State<WardrobePage> {
       // If AI fails entirely, fall back to unprocessed image with no tags.
       result = AiImageResult(processedFile: imageFile);
     }
+    
+    if (!mounted) return;
+
+    // showDialog uses rootNavigator:true by default; pop from the same root
+    // navigator, not the branch navigator that StatefulShellRoute creates.
+    Navigator.of(context, rootNavigator: true).pop();
 
     if (!mounted) return;
-    Navigator.of(context).pop(); // close processing dialog
 
     // Open the pre-filled form.
     final ClothingItem? saved = await showModalBottomSheet<ClothingItem>(
@@ -171,14 +198,16 @@ class _WardrobePageState extends State<WardrobePage> {
       builder: (_) => _ClothingForm(aiResult: result),
     );
 
-    if (saved != null) _saveClothingItem(saved);
+    if (saved != null && mounted) _saveClothingItem(saved);
   }
-
-  // ── Firestore save ─────────────────────────────────────────────────────────
 
   Future<void> _saveClothingItem(ClothingItem item) async {
     try {
-      await FirebaseFirestore.instance.collection('clothes').add(item.toMap(widget.userId));
+      debugPrint('[Wardrobe] Inserting into clothing_items: type=${item.type.name}, url=${item.imageUrl}');
+      await Supabase.instance.client
+          .from('clothing_items')
+          .insert(item.toMap(widget.userId));
+      debugPrint('[Wardrobe] DB insert OK');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -331,9 +360,12 @@ class _ClothingFormState extends State<_ClothingForm> {
                   borderRadius: BorderRadius.circular(16),
                   child: AspectRatio(
                     aspectRatio: 1,
-                    child: Image.file(
-                      widget.aiResult.processedFile,
-                      fit: BoxFit.contain,
+                    child: Container(
+                      color: Colors.white,
+                      child: Image.file(
+                        widget.aiResult.processedFile,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                 ),
@@ -376,7 +408,7 @@ class _ClothingFormState extends State<_ClothingForm> {
 
                 // ── category dropdown ─────────────────────────────────
                 DropdownButtonFormField<ClothingType>(
-                  value: _selectedType,
+                  initialValue: _selectedType,
                   decoration: const InputDecoration(labelText: 'Category'),
                   items: ClothingType.values
                       .map((t) => DropdownMenuItem(
@@ -476,13 +508,17 @@ class _ClothingFormState extends State<_ClothingForm> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      // Upload the processed (bg-removed) image to Supabase.
+      // One transparent PNG stored for both display (shown on white in UI)
+      // and canvas (shown without background for natural layering).
       final imageUrl = await _uploadToSupabase(
-          widget.aiResult.processedFile, _selectedType);
+          widget.aiResult.processedFile, _selectedType, 'item');
+      final String? cutoutUrl =
+          widget.aiResult.cutoutFile != null ? imageUrl : null;
 
       final item = ClothingItem(
         type:        _selectedType,
         imageUrl:    imageUrl,
+        cutoutUrl:   cutoutUrl,
         description: _descController.text.trim(),
         tags:        _tags,
         colours:     _colours,
@@ -501,20 +537,25 @@ class _ClothingFormState extends State<_ClothingForm> {
     }
   }
 
-  Future<String> _uploadToSupabase(File file, ClothingType type) async {
+  Future<String> _uploadToSupabase(File file, ClothingType type, String suffix) async {
     final folder   = type.name.toLowerCase();
     final fileExt  = file.path.split('.').last;
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}_$suffix.$fileExt';
     final filePath = '$folder/$fileName';
     const bucket   = 'Clothing images';
+
+    debugPrint('[Wardrobe] Uploading $suffix: $bucket/$filePath (${file.lengthSync()} bytes)');
 
     await Supabase.instance.client.storage
         .from(bucket)
         .upload(filePath, file);
 
-    return Supabase.instance.client.storage
+    final url = Supabase.instance.client.storage
         .from(bucket)
         .getPublicUrl(filePath);
+
+    debugPrint('[Wardrobe] Upload OK ($suffix): $url');
+    return url;
   }
 }
 

@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:virtual_wardrobe/models/user_post.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/services/userprofileprovider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -600,8 +600,8 @@ class _OptionsDrawer extends StatelessWidget {
               Navigator.of(ctx).pop();
               
               try {
+                await Supabase.instance.client.auth.signOut();
                 await GoogleSignIn.instance.signOut();
-                // AuthGate stream handles navigation
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Log out failed: $e')),

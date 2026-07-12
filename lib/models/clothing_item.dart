@@ -15,39 +15,34 @@ class ClothingItem {
   final String? id;
   final ClothingType type;
   final String imageUrl;
+  final String? cutoutUrl;
   final String? description;
-
-  /// AI-generated tags, e.g. ['casual', 'summer', 'cotton']
   final List<String> tags;
-
-  /// AI-detected colours, e.g. ['white', 'navy']
   final List<String> colours;
-
-  /// AI-detected style, e.g. 'streetwear', 'formal', 'minimalist'
   final String? style;
 
   ClothingItem({
     this.id,
     required this.type,
     required this.imageUrl,
+    this.cutoutUrl,
     this.description = '',
     this.tags = const [],
     this.colours = const [],
     this.style,
   });
 
-  Map<String, dynamic> toMap(String userId) {
-    return {
-      'type':        type.name,
-      'imageUrl':    imageUrl,
-      'description': description,
-      'tags':        tags,
-      'colours':     colours,
-      'style':       style,
-      'createdAt':   DateTime.now().toIso8601String(),
-      'userId': userId
-    };
-  }
+  // Supabase insert payload — snake_case to match the DB schema.
+  Map<String, dynamic> toMap(String userId) => {
+    'user_id':     userId,
+    'type':        type.name,
+    'image_url':   imageUrl,
+    'cutout_url':  cutoutUrl,
+    'description': description,
+    'tags':        tags,
+    'colours':     colours,
+    'style':       style,
+  };
 
   static ClothingType _parseClothingType(dynamic input) {
     if (input == null) return ClothingType.top;
@@ -67,17 +62,19 @@ class ClothingItem {
     return ClothingType.top;
   }
 
-  factory ClothingItem.fromMap(Map<String, dynamic> map, {String? docId}) {
-    List<String> _toStringList(dynamic v) =>
+  // Parses a row from the Supabase `clothing_items` table (snake_case).
+  factory ClothingItem.fromMap(Map<String, dynamic> map) {
+    List<String> toStringList(dynamic v) =>
         v is List ? v.map((e) => e.toString()).toList() : [];
 
     return ClothingItem(
-      id:          docId,
+      id:          map['id'] as String?,
       type:        _parseClothingType(map['type']),
-      imageUrl:    map['imageUrl'] as String? ?? '',
+      imageUrl:    map['image_url'] as String? ?? '',
+      cutoutUrl:   map['cutout_url'] as String?,
       description: map['description'] as String?,
-      tags:        _toStringList(map['tags']),
-      colours:     _toStringList(map['colours']),
+      tags:        toStringList(map['tags']),
+      colours:     toStringList(map['colours']),
       style:       map['style'] as String?,
     );
   }

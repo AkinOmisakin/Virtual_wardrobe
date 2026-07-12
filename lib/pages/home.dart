@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:virtual_wardrobe/models/outfit.dart';
+// import 'package:virtual_wardrobe/models/outfit.dart';
 import 'package:virtual_wardrobe/pages/outfits_details_page.dart';
 import 'package:virtual_wardrobe/services/outfitprovider.dart';
 
@@ -110,7 +110,7 @@ class _OutfitScrollRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: outfits.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) =>
             _OutfitCard(resolved: outfits[index]),
       ),
@@ -240,8 +240,8 @@ class _CanvasPreview extends StatelessWidget {
                       width:  c.size,
                       height: c.size,
                       fit: BoxFit.contain,
-                      placeholder: (_, __) => const SizedBox.shrink(),
-                      errorWidget: (_, __, ___) =>
+                      placeholder: (_, _) => const SizedBox.shrink(),
+                      errorWidget: (_, _, _) =>
                           const Icon(Icons.broken_image, size: 20),
                     ),
                   ),
@@ -275,8 +275,8 @@ class _ImageGrid extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: preview[0].imageUrl,
         fit: BoxFit.contain,
-        placeholder: (_, __) => const SizedBox.shrink(),
-        errorWidget: (_, __, ___) => const Icon(Icons.broken_image),
+        placeholder: (_, _) => const SizedBox.shrink(),
+        errorWidget: (_, _, _) => const Icon(Icons.broken_image),
       );
     }
     // 2-column grid for 2–4 items.
@@ -289,8 +289,8 @@ class _ImageGrid extends StatelessWidget {
           child: CachedNetworkImage(
             imageUrl: item.imageUrl,
             fit: BoxFit.contain,
-            placeholder: (_, __) => const SizedBox.shrink(),
-            errorWidget: (_, __, ___) =>
+            placeholder: (_, _) => const SizedBox.shrink(),
+            errorWidget: (_, _, _) =>
                 const Icon(Icons.broken_image, size: 16),
           ),
         );
@@ -315,8 +315,8 @@ class _LoadingRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: 3,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (_, __) => SizedBox(
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (_, _) => SizedBox(
           width: 160,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dotted_border/dotted_border.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 //pages
 import 'package:virtual_wardrobe/pages/storage.dart';
@@ -10,10 +9,10 @@ import 'package:virtual_wardrobe/pages/storage.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
 import 'package:virtual_wardrobe/models/clothing_categories.dart';
 import 'package:virtual_wardrobe/models/canvas_item.dart';
-import 'package:virtual_wardrobe/models/outfit.dart';
 
 //services
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/services/itemprovider.dart';
 
 class CanvasScreen extends StatefulWidget {
@@ -243,30 +242,36 @@ class _CanvasScreenState extends State<CanvasScreen>
     );
   }
 
-  /// Builds an [Outfit] from the current canvas state and writes it to
-  /// the 'outfits' Firestore collection.
+  /// Saves the canvas state as a new outfit: inserts the outfit row then all
+  /// outfit_items rows in a single batch.
   Future<void> _saveOutfit(String name) async {
-    final outfit = Outfit(
-      name: name,
-      // Deduplicated ordered list of item IDs (preserves z-order from canvas)
-      itemIds: _itemsInCanvas.map((c) => c.item.id!).toList(),
-      // Full canvas state so the layout can be restored later
-      canvasItems: _itemsInCanvas
-          .map(
-            (c) => OutfitCanvasItem.fromValues(
-              itemId: c.item.id!,
-              position: c.position,
-              scale: c.scale,
-              rotation: c.rotation,
-              size: c.size,
-            ),
-          )
-          .toList(),
-    );
+    final db = Supabase.instance.client;
 
-    await FirebaseFirestore.instance
-        .collection('outfits')
-        .add(outfit.toMap(widget.userId));
+    // 1. Insert outfit row and retrieve generated ID.
+    final outfitRow = await db
+        .from('outfits')
+        .insert({'user_id': widget.userId, 'name': name})
+        .select('id')
+        .single();
+    final outfitId = outfitRow['id'] as String;
+
+    // 2. Insert one outfit_items row per canvas item (position = z-order index).
+    final itemRows = _itemsInCanvas.asMap().entries.map((e) {
+      final i = e.key;
+      final c = e.value;
+      return {
+        'outfit_id':        outfitId,
+        'clothing_item_id': c.item.id!,
+        'position':         i,
+        'canvas_x':         c.position.dx,
+        'canvas_y':         c.position.dy,
+        'canvas_scale':     c.scale,
+        'canvas_rotation':  c.rotation,
+        'canvas_size':      c.size,
+      };
+    }).toList();
+
+    await db.from('outfit_items').insert(itemRows);
   }
 
   void _showSnack(String message) {
@@ -333,7 +338,7 @@ class _CanvasScreenState extends State<CanvasScreen>
               width: canvasItem.size,
               height: canvasItem.size,
               child: CachedNetworkImage(
-                imageUrl: canvasItem.item.imageUrl,
+                imageUrl: canvasItem.item.cutoutUrl ?? canvasItem.item.imageUrl,
                 fit: BoxFit.contain,
                 placeholder: (c, u) =>
                     const Center(child: CircularProgressIndicator()),

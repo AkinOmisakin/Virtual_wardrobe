@@ -1,15 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/models/outfit.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 /// An [Outfit] paired with the resolved [ClothingItem] objects for its items.
-/// This is what [OutfitProvider] exposes to the UI — no extra Firestore reads
-/// needed at display time.
 class ResolvedOutfit {
   final Outfit outfit;
   final List<ClothingItem> items; // same order as outfit.itemIds
@@ -18,17 +12,18 @@ class ResolvedOutfit {
 }
 
 class OutfitProvider extends ChangeNotifier {
-  final String? userId = FirebaseAuth.instance.currentUser!.uid;
+  final String? userId = Supabase.instance.client.auth.currentUser?.id;
+
   OutfitProvider({required this.allItems}) {
     _subscribe();
   }
 
-  /// The full catalogue of clothing items, kept in sync by [ItemProvider].
-  /// Call [updateItems] whenever [ItemProvider] rebuilds its list.
+  /// The full clothing catalogue, kept in sync by [ItemProvider].
+  /// Call [updateItems] whenever [ItemProvider] delivers a new list.
   List<ClothingItem> allItems;
 
   List<ResolvedOutfit> _outfits = [];
-  StreamSubscription<QuerySnapshot>? _subscription;
+  RealtimeChannel? _channel;
   bool _isLoading = true;
   String? _error;
 
@@ -39,37 +34,61 @@ class OutfitProvider extends ChangeNotifier {
   // ── subscription ──────────────────────────────────────────────────────────
 
   void _subscribe() {
+    if (userId == null) return;
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    _subscription = FirebaseFirestore.instance
-        .collection('outfits')
-        .where('userId', isEqualTo: userId)
-        // .orderBy('updatedAt', descending: true)
-        .snapshots()
-        .listen(
-      (snapshot) {
-        final raw = snapshot.docs
-            .map((doc) => Outfit.fromMap(doc.data(), docId: doc.id))
-            .toList();
-        _outfits = _resolve(raw);
-        _isLoading = false;
-        notifyListeners();
-      },
-      onError: (e) {
-        _error = e.toString();
-        _isLoading = false;
-        notifyListeners();
-      },
-    );
+    // Do an initial fetch then watch both tables for changes.
+    _fetchOutfits();
+
+    _channel = Supabase.instance.client
+        .channel('outfits_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'outfits',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId!,
+          ),
+          callback: (_) => _fetchOutfits(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'outfit_items',
+          callback: (_) => _fetchOutfits(),
+        )
+        .subscribe();
+  }
+
+  Future<void> _fetchOutfits() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('outfits')
+          .select('*, outfit_items(*)')
+          .eq('user_id', userId!)
+          .order('created_at', ascending: false);
+
+      final raw = (data as List)
+          .map((e) => Outfit.fromMap(e as Map<String, dynamic>))
+          .toList();
+      _outfits = _resolve(raw);
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   /// Called by the parent widget when [ItemProvider] delivers a new item list,
-  /// so resolved outfits stay up to date without re-fetching from Firestore.
+  /// so resolved outfits stay up to date without re-fetching from Supabase.
   void updateItems(List<ClothingItem> items) {
     allItems = items;
-    // Re-resolve with the fresh item catalogue
     final raw = _outfits.map((r) => r.outfit).toList();
     _outfits = _resolve(raw);
     notifyListeners();
@@ -77,9 +96,6 @@ class OutfitProvider extends ChangeNotifier {
 
   // ── resolution ─────────────────────────────────────────────────────────────
 
-  /// Matches each outfit's itemIds against the in-memory item catalogue.
-  /// Items that no longer exist in the catalogue are silently skipped —
-  /// this handles deleted clothing gracefully.
   List<ResolvedOutfit> _resolve(List<Outfit> outfits) {
     final itemById = {
       for (final item in allItems)
@@ -89,7 +105,7 @@ class OutfitProvider extends ChangeNotifier {
     return outfits.map((outfit) {
       final resolved = outfit.itemIds
           .map((id) => itemById[id])
-          .whereType<ClothingItem>() // drops nulls (deleted items)
+          .whereType<ClothingItem>()
           .toList();
       return ResolvedOutfit(outfit: outfit, items: resolved);
     }).toList();
@@ -98,26 +114,28 @@ class OutfitProvider extends ChangeNotifier {
   // ── mutations ──────────────────────────────────────────────────────────────
 
   Future<void> deleteOutfit(String outfitId) async {
-    await FirebaseFirestore.instance
-        .collection('outfits')
-        .doc(outfitId)
-        .delete();
-    // Stream will update _outfits automatically
+    await Supabase.instance.client
+        .from('outfits')
+        .delete()
+        .eq('id', outfitId);
+    // Realtime channel triggers _fetchOutfits automatically.
   }
 
   Future<void> renameOutfit(String outfitId, String newName) async {
-    await FirebaseFirestore.instance
-        .collection('outfits')
-        .doc(outfitId)
+    await Supabase.instance.client
+        .from('outfits')
         .update({
-      'name': newName,
-      'updatedAt': DateTime.now().toIso8601String(),
-    });
+          'name': newName,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', outfitId);
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    if (_channel != null) {
+      Supabase.instance.client.removeChannel(_channel!);
+    }
     super.dispose();
   }
 }

@@ -7,7 +7,7 @@ enum PostType {
 class UserPost {
   final String id;
   final PostType type;
-  final String imageUrl;       // rendered image for the grid
+  final String imageUrl;
   final String? caption;
   final DateTime createdAt;
   final int likes;
@@ -21,33 +21,30 @@ class UserPost {
     this.likes = 0,
   });
 
-  Map<String, dynamic> toMap() => {
-    'type': type.name,
-    'imageUrl': imageUrl,
-    'caption': caption,
-    'createdAt': createdAt.toIso8601String(),
-    'likes': likes,
+  // Insert payload for the `posts` table (snake_case).
+  Map<String, dynamic> toMap(String userId) => {
+    'user_id':    userId,
+    'type':       type.name,
+    'image_url':  imageUrl,
+    'caption':    caption,
+    'created_at': createdAt.toIso8601String(),
+    'likes':      likes,
   };
 
-  factory UserPost.fromMap(Map<String, dynamic> map, {required String docId}) {
-    PostType resolvedType;
-    switch (map['type'] as String?) {
-      case 'aiTryOn':
-        resolvedType = PostType.aiTryOn;
-        break;
-      case 'canvas':
-        resolvedType = PostType.canvas;
-        break;
-      default:
-        resolvedType = PostType.selfie;
-    }
+  // Parses a row from the Supabase `posts` table.
+  factory UserPost.fromMap(Map<String, dynamic> map) {
+    final PostType resolvedType = switch (map['type'] as String?) {
+      'aiTryOn' => PostType.aiTryOn,
+      'canvas'  => PostType.canvas,
+      _         => PostType.selfie,
+    };
     return UserPost(
-      id: docId,
-      type: resolvedType,
-      imageUrl: map['imageUrl'] as String? ?? '',
-      caption: map['caption'] as String?,
-      createdAt: map['createdAt'] != null
-          ? DateTime.tryParse(map['createdAt'] as String) ?? DateTime.now()
+      id:        map['id'] as String,
+      type:      resolvedType,
+      imageUrl:  map['image_url'] as String? ?? '',
+      caption:   map['caption'] as String?,
+      createdAt: map['created_at'] != null
+          ? DateTime.tryParse(map['created_at'] as String) ?? DateTime.now()
           : DateTime.now(),
       likes: (map['likes'] as num?)?.toInt() ?? 0,
     );
