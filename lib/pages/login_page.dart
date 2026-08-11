@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:virtual_wardrobe/utils/error_messages.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -81,7 +82,9 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e, st) {
       debugPrint('Google sign-in error: $e\n$st');
       if (mounted) {
-        setState(() => _error = 'Google sign-in failed: $e');
+        setState(() => _error = friendlyError(e,
+            fallback: 'Google sign-in failed. Please try again.',
+            stackTrace: st));
       }
     } finally {
       if (mounted) setState(() => _loadingGoogle = false);

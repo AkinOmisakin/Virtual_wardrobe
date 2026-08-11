@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/models/outfit.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
+import 'package:virtual_wardrobe/utils/error_messages.dart';
 
 /// An [Outfit] paired with the resolved [ClothingItem] objects for its items.
 class ResolvedOutfit {
@@ -78,8 +79,10 @@ class OutfitProvider extends ChangeNotifier {
       _outfits = _resolve(raw);
       _isLoading = false;
       notifyListeners();
-    } catch (e) {
-      _error = e.toString();
+    } catch (e, st) {
+      _error = friendlyError(e,
+          fallback: "Couldn't load your outfits. Please try again.",
+          stackTrace: st);
       _isLoading = false;
       notifyListeners();
     }

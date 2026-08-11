@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same branch/PR.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter analyze & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # The pubspec lists `.env` and assets/clothing/ as assets, so they must
+      # exist for `flutter test` to build the asset bundle. Real secrets are
+      # never needed here — tests cover pure logic, not Supabase init.
+      - name: Create placeholder .env
+        run: cp .env.example .env
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Fails on warnings/errors but tolerates the project's existing info-level
+      # lint debt. Drop --no-fatal-infos once those are cleaned up.
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-coverage
+          path: coverage/lcov.info
+          if-no-files-found: ignore
+
+  functions:
+    name: Edge functions lint & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Lint
+        run: deno lint
+        working-directory: supabase/functions
+
+      - name: Type-check & test
+        # Our tests read Deno.env; they never hit the network (validation paths
+        # short-circuit before any fetch), so --allow-env is all that's required.
+        run: deno test --allow-env
+        working-directory: supabase/functions

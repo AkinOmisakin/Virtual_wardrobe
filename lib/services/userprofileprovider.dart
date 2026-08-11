@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/models/user_post.dart';
+import 'package:virtual_wardrobe/utils/error_messages.dart';
 
 class UserProfile {
   final String id;
@@ -102,8 +103,10 @@ class UserProfileProvider extends ChangeNotifier {
             _isLoading = false;
             notifyListeners();
           },
-          onError: (e) {
-            _error = e.toString();
+          onError: (e, st) {
+            _error = friendlyError(e,
+                fallback: "Couldn't load your profile. Please try again.",
+                stackTrace: st);
             _isLoading = false;
             notifyListeners();
           },
@@ -121,8 +124,10 @@ class UserProfileProvider extends ChangeNotifier {
             _posts = rows.map(UserPost.fromMap).toList();
             notifyListeners();
           },
-          onError: (e) {
-            _error = e.toString();
+          onError: (e, st) {
+            _error = friendlyError(e,
+                fallback: "Couldn't load your posts. Please try again.",
+                stackTrace: st);
             notifyListeners();
           },
         );

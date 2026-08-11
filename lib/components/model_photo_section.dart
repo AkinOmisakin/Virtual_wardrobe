@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import 'package:virtual_wardrobe/services/userprofileprovider.dart';
+import 'package:virtual_wardrobe/utils/error_messages.dart';
 
 /// A profile section that lets the user add / view / change / remove their
 /// private model photo used for AI try-on.
@@ -196,9 +197,8 @@ class _ModelPhotoSectionState extends State<ModelPhotoSection> {
       await provider.uploadModelPhoto(File(picked.path));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
-        );
+        showErrorSnackBar(context, e,
+            fallback: "Couldn't upload your photo. Please try again.");
       }
     } finally {
       if (mounted) setState(() => _busy = false);

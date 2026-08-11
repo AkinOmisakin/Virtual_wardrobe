@@ -48,17 +48,23 @@ final router = GoRouter(
         StatefulShellBranch(routes: [
           GoRoute(
             path: '/wardrobe',
-            builder: (_, _) => WardrobePage(
-              userId: Supabase.instance.client.auth.currentUser!.id,
-            ),
+            builder: (_, _) {
+              // Don't force-unwrap: during an auth-state race the user can be
+              // null for a frame before the redirect sends us to /login.
+              final userId = Supabase.instance.client.auth.currentUser?.id;
+              if (userId == null) return const _AuthLoadingScreen();
+              return WardrobePage(userId: userId);
+            },
           ),
         ]),
         StatefulShellBranch(routes: [
           GoRoute(
             path: '/profile',
-            builder: (_, _) => ProfilePage(
-              userId: Supabase.instance.client.auth.currentUser!.id,
-            ),
+            builder: (_, _) {
+              final userId = Supabase.instance.client.auth.currentUser?.id;
+              if (userId == null) return const _AuthLoadingScreen();
+              return ProfilePage(userId: userId);
+            },
           ),
         ]),
       ],
@@ -106,6 +112,23 @@ class AppShell extends StatelessWidget {
             label: 'Profile',
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Auth-transition placeholder ─────────────────────────────────────────────────
+
+/// Brief spinner shown when a protected route builds while the user is null.
+/// The redirect resolves to /login on the next frame, so this is transient.
+class _AuthLoadingScreen extends StatelessWidget {
+  const _AuthLoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
       ),
     );
   }

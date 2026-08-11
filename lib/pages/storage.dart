@@ -22,6 +22,24 @@ class ItemsPage extends StatefulWidget {
 class _ItemsPageState extends State<ItemsPage>  {
   static bool _show = false; // Whether to show item counts in section titles
 
+  // One PageController per category, kept across rebuilds so they aren't
+  // recreated (and leaked) on every build. Category titles are a small fixed
+  // set, so this map stays bounded.
+  final Map<String, PageController> _carouselControllers = {};
+
+  PageController _controllerFor(String key) => _carouselControllers.putIfAbsent(
+        key,
+        () => PageController(viewportFraction: 0.5),
+      );
+
+  @override
+  void dispose() {
+    for (final controller in _carouselControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ItemProvider>(context);
@@ -33,7 +51,18 @@ class _ItemsPageState extends State<ItemsPage>  {
     }
 
     if (provider.error != null) {
-      return Scaffold(body: Center(child: Text('Error: ${provider.error}')));
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              provider.error ?? 'Something went wrong. Please try again.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ),
+      );
     }
 
     final items = provider.items;
@@ -68,7 +97,7 @@ class _ItemsPageState extends State<ItemsPage>  {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _sectionTitle(context, category.title, category.items),
-              _clothingCarousel(category.items),
+              _clothingCarousel(category.title, category.items),
               const SizedBox(height: 24),
             ]
           );
@@ -98,11 +127,11 @@ class _ItemsPageState extends State<ItemsPage>  {
     );
   }
 
-  Widget _clothingCarousel(List<ClothingItem> items) {
+  Widget _clothingCarousel(String key, List<ClothingItem> items) {
     return SizedBox(
       height: 200,
       child:  PageView.builder(
-        controller: PageController(viewportFraction: 0.5),
+        controller: _controllerFor(key),
         itemCount: items.length,
         itemBuilder: (context, index) {
           final item = items[index];

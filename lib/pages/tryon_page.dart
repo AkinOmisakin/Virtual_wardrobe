@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:virtual_wardrobe/services/outfitprovider.dart';
 import 'package:virtual_wardrobe/services/userprofileprovider.dart';
 import 'package:virtual_wardrobe/services/tryon_service.dart';
+import 'package:virtual_wardrobe/utils/error_messages.dart';
 
 class TryOnPage extends StatefulWidget {
   const TryOnPage({super.key});
@@ -104,7 +105,8 @@ class _TryOnPageState extends State<TryOnPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString().replaceFirst('Exception: ', '');
+          _error = friendlyError(e,
+              fallback: 'Try-on failed. Please try again.');
           _stage = 'select';
         });
       }

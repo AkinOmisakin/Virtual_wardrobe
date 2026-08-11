@@ -33,7 +33,9 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
-/assets/clothing/
+# Ignore user clothing images but keep the folder so the pubspec asset resolves.
+/assets/clothing/*
+!/assets/clothing/.gitkeep
 
 # Symbolication related
 app.*.symbols

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
+import 'package:virtual_wardrobe/services/clothing_storage.dart';
+import 'package:virtual_wardrobe/utils/error_messages.dart';
 
 class ItemPage extends StatefulWidget {
   final ClothingItem? item;
@@ -98,21 +100,8 @@ class _ItemPageState extends State<ItemPage> {
     }
   }
 
-  Future<String> _uploadImageToSupabase(XFile img, ClothingType type) async {
-    final folder = type.name.toLowerCase(); // e.g. "top", "trouser"
-    final fileExt = img.path.split('.').last;
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
-    final filePath = '$folder/$fileName';
-    const bucketName = 'Clothing images';
-
-    await Supabase.instance.client.storage
-        .from(bucketName)
-        .upload(filePath, File(img.path));
-
-    return Supabase.instance.client.storage
-        .from(bucketName)
-        .getPublicUrl(filePath);
-  }
+  Future<String> _uploadImageToSupabase(XFile img, ClothingType type) =>
+      ClothingStorage.uploadImage(File(img.path), type);
 
   // ── save / delete ─────────────────────────────────────────────────────────
 
@@ -151,9 +140,8 @@ class _ItemPageState extends State<ItemPage> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
-        );
+        showErrorSnackBar(context, e,
+            fallback: "Couldn't save your item. Please try again.");
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -192,9 +180,8 @@ class _ItemPageState extends State<ItemPage> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e')),
-        );
+        showErrorSnackBar(context, e,
+            fallback: "Couldn't delete your item. Please try again.");
       }
     }
   }

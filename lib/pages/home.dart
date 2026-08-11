@@ -1,28 +1,430 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-// import 'package:virtual_wardrobe/models/outfit.dart';
+import 'package:virtual_wardrobe/models/clothing_item.dart';
+import 'package:virtual_wardrobe/pages/canvas.dart';
+import 'package:virtual_wardrobe/pages/item.dart';
 import 'package:virtual_wardrobe/pages/outfits_details_page.dart';
+import 'package:virtual_wardrobe/pages/tryon_page.dart';
+import 'package:virtual_wardrobe/services/itemprovider.dart';
 import 'package:virtual_wardrobe/services/outfitprovider.dart';
+import 'package:virtual_wardrobe/services/userprofileprovider.dart';
 
-class HomePage extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Home palette / type — local tokens so the page reads as one system without
+// changing the global theme (which every other page depends on).
+// ─────────────────────────────────────────────────────────────────────────────
+
+abstract final class _P {
+  static const ink      = Color(0xFF111111);
+  static const inkMuted = Color(0xFF6B6B6B);
+  static const inkFaint = Color(0xFFA8A8A8);
+  static const line     = Color(0xFFEBEBEB);
+  static const surface  = Color(0xFFF7F7F7);
+  static const canvas   = Color(0xFFFCFCFC);
+
+  // Accents echo the bottom navigation bar so the app feels of a piece.
+  static const mint  = Color(0xFF6FD8AE); // build / canvas
+  static const lilac = Color(0xFFB9A0FF); // wardrobe
+  static const amber = Color(0xFFFFB259); // try-on
+}
+
+abstract final class _Type {
+  /// Small letter-spaced caps used above every section.
+  static TextStyle eyebrow([Color color = _P.inkFaint]) => GoogleFonts.robotoMono(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 1.6,
+        color: color,
+      );
+
+  static TextStyle wordmark() => GoogleFonts.robotoMono(
+        fontSize: 20,
+        fontWeight: FontWeight.w300,
+        letterSpacing: 6,
+        color: _P.ink,
+      );
+
+  static TextStyle display({FontWeight weight = FontWeight.w300}) =>
+      GoogleFonts.robotoMono(
+        fontSize: 26,
+        height: 1.25,
+        fontWeight: weight,
+        color: _P.ink,
+      );
+
+  static TextStyle cardTitle() => GoogleFonts.robotoMono(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: _P.ink,
+      );
+
+  static TextStyle meta([Color color = _P.inkFaint]) => GoogleFonts.robotoMono(
+        fontSize: 10,
+        fontWeight: FontWeight.w400,
+        color: color,
+      );
+
+  static TextStyle stat() => GoogleFonts.robotoMono(
+        fontSize: 20,
+        fontWeight: FontWeight.w400,
+        color: _P.ink,
+      );
+}
+
+const double _gutter = 20;
+const double _sectionGap = 30;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────────────
+
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  /// Fetched once per page mount: the greeting name and avatar. Kept out of
+  /// [UserProfileProvider] (which only lives under the profile tab) so home
+  /// stays cheap — a single row, and the page degrades gracefully without it.
+  late final Future<_Greeter> _greeter = _loadGreeter();
+
+  Future<_Greeter> _loadGreeter() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return const _Greeter();
+    try {
+      final row = await Supabase.instance.client
+          .from('profiles')
+          .select('name, avatar_url')
+          .eq('id', user.id)
+          .maybeSingle();
+      return _Greeter(
+        name: row?['name'] as String?,
+        avatarUrl: row?['avatar_url'] as String?,
+      );
+    } catch (_) {
+      return _Greeter(name: user.userMetadata?['name'] as String?);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text('Cher', style: Theme.of(context).textTheme.titleLarge),
+      backgroundColor: Colors.white,
+      body: FutureBuilder<_Greeter>(
+        future: _greeter,
+        builder: (context, snapshot) {
+          final greeter = snapshot.data ?? const _Greeter();
+          return CustomScrollView(
+            slivers: [
+              _TopBar(greeter: greeter),
+              SliverToBoxAdapter(child: _Greeting(greeter: greeter)),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SliverToBoxAdapter(child: _LatestFit(userId: userId)),
+              const SliverToBoxAdapter(child: SizedBox(height: _sectionGap)),
+              SliverToBoxAdapter(child: _QuickActions(userId: userId)),
+              const SliverToBoxAdapter(child: SizedBox(height: _sectionGap)),
+              const SliverToBoxAdapter(child: _RecentOutfitsSection()),
+              SliverToBoxAdapter(child: _NewInWardrobeSection(userId: userId)),
+              const SliverToBoxAdapter(child: _WardrobeStats()),
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            ],
+          );
+        },
       ),
-      body: SingleChildScrollView(
+    );
+  }
+}
+
+/// The bits of the profile the home page needs.
+class _Greeter {
+  const _Greeter({this.name, this.avatarUrl});
+  final String? name;
+  final String? avatarUrl;
+
+  /// First name only — "Good evening, Akin" reads better than the full name.
+  String? get firstName {
+    final trimmed = name?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed.split(RegExp(r'\s+')).first;
+  }
+
+  String get initial {
+    final f = firstName;
+    return (f == null || f.isEmpty) ? '·' : f[0].toUpperCase();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Top bar — wordmark + avatar shortcut to the profile tab
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TopBar extends StatelessWidget {
+  const _TopBar({required this.greeter});
+  final _Greeter greeter;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverAppBar(
+      pinned: true,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      centerTitle: false,
+      titleSpacing: _gutter,
+      title: Text('CHER', style: _Type.wordmark()),
+      actions: [
+        GestureDetector(
+          onTap: () => context.go('/profile'),
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _P.surface,
+              border: Border.all(color: _P.line),
+              image: greeter.avatarUrl != null
+                  ? DecorationImage(
+                      image: CachedNetworkImageProvider(greeter.avatarUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            alignment: Alignment.center,
+            child: greeter.avatarUrl != null
+                ? null
+                : Text(greeter.initial, style: _Type.cardTitle()),
+          ),
+        ),
+        const SizedBox(width: _gutter),
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: _P.line),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Greeting — date line + time-aware salutation
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Greeting extends StatelessWidget {
+  const _Greeting({required this.greeter});
+  final _Greeter greeter;
+
+  static const _weekdays = [
+    'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY',
+    'FRIDAY', 'SATURDAY', 'SUNDAY',
+  ];
+  static const _months = [
+    'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+    'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final hour = now.hour;
+    final salutation = hour < 12
+        ? 'Good morning'
+        : hour < 18
+            ? 'Good afternoon'
+            : 'Good evening';
+    final name = greeter.firstName;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_gutter, 22, _gutter, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_weekdays[now.weekday - 1]}, ${now.day} ${_months[now.month - 1]}',
+            style: _Type.eyebrow(),
+          ),
+          const SizedBox(height: 10),
+          RichText(
+            text: TextSpan(
+              style: _Type.display(),
+              children: [
+                TextSpan(text: name == null ? '$salutation.' : '$salutation,\n'),
+                if (name != null)
+                  TextSpan(
+                    text: '$name.',
+                    style: _Type.display(weight: FontWeight.w500),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Latest fit — the hero card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LatestFit extends StatelessWidget {
+  const _LatestFit({required this.userId});
+  final String? userId;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<OutfitProvider>(context);
+
+    if (provider.isLoading) return const _HeroSkeleton();
+    if (provider.error != null) return _ErrorNote(message: provider.error!);
+    if (provider.outfits.isEmpty) return _StartFirstFitCard(userId: userId);
+
+    final latest = provider.outfits.first;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _gutter),
+      child: GestureDetector(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OutfitDetailsPage(resolved: latest),
+          ),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _P.line),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+                child: Row(
+                  children: [
+                    Text('LATEST FIT', style: _Type.eyebrow(_P.ink)),
+                    const Spacer(),
+                    Text(_timeAgo(latest.outfit.createdAt), style: _Type.meta()),
+                  ],
+                ),
+              ),
+              SizedBox(
+                height: 260,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                  child: _OutfitPreview(resolved: latest),
+                ),
+              ),
+              Container(height: 1, color: _P.line),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            latest.outfit.name,
+                            style: _Type.cardTitle(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(_itemCount(latest.items.length),
+                              style: _Type.meta(_P.inkMuted)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _P.ink,
+                      ),
+                      child: const Icon(Icons.arrow_forward,
+                          size: 16, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Empty-state hero: nothing to show yet, so sell the next action.
+class _StartFirstFitCard extends StatelessWidget {
+  const _StartFirstFitCard({required this.userId});
+  final String? userId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _gutter),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(24, 34, 24, 28),
+        decoration: BoxDecoration(
+          color: _P.canvas,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: _P.line),
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            _RecentOutfitsSection(),
-            // Add more home sections here later (e.g. trending, for you…)
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: _P.mint.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(Icons.auto_awesome_outlined,
+                  size: 22, color: _P.ink),
+            ),
+            const SizedBox(height: 18),
+            Text('No fits yet', style: _Type.display().copyWith(fontSize: 18)),
+            const SizedBox(height: 8),
+            Text(
+              'Lay your pieces out on the canvas and\nsave your first outfit.',
+              textAlign: TextAlign.center,
+              style: _Type.meta(_P.inkMuted).copyWith(height: 1.6, fontSize: 11),
+            ),
+            const SizedBox(height: 22),
+            if (userId != null)
+              GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CanvasScreen(userId: userId!),
+                  ),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 26, vertical: 13),
+                  decoration: BoxDecoration(
+                    color: _P.ink,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Text(
+                    'Build a fit',
+                    style: _Type.cardTitle().copyWith(color: Colors.white),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -31,7 +433,149 @@ class HomePage extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Recent outfits section
+// Quick actions
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions({required this.userId});
+  final String? userId;
+
+  @override
+  Widget build(BuildContext context) {
+    if (userId == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _gutter),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ActionTile(
+              icon: Icons.add_a_photo_outlined,
+              label: 'Add item',
+              tint: _P.lilac,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ItemPage(userId: userId!)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _ActionTile(
+              icon: Icons.dashboard_customize_outlined,
+              label: 'Build a fit',
+              tint: _P.mint,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => CanvasScreen(userId: userId!)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _ActionTile(
+              icon: Icons.checkroom_outlined,
+              label: 'Try on',
+              tint: _P.amber,
+              // TryOnPage reads UserProfileProvider, which only exists under the
+              // profile tab — so supply one scoped to this route.
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChangeNotifierProvider(
+                    create: (_) => UserProfileProvider(userId: userId!),
+                    child: const TryOnPage(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.tint,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color tint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _P.line),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, size: 18, color: _P.ink),
+            ),
+            const SizedBox(height: 10),
+            Text(label, style: _Type.meta(_P.ink), textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section header
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.trailing, this.onTrailingTap});
+
+  final String title;
+  final String? trailing;
+  final VoidCallback? onTrailingTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_gutter, 0, _gutter, 14),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title.toUpperCase(), style: _Type.eyebrow(_P.ink)),
+          if (trailing != null)
+            GestureDetector(
+              onTap: onTrailingTap,
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                children: [
+                  Text(trailing!, style: _Type.meta(_P.inkMuted)),
+                  const SizedBox(width: 3),
+                  const Icon(Icons.chevron_right, size: 14, color: _P.inkMuted),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recent outfits — everything except the hero
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _RecentOutfitsSection extends StatelessWidget {
@@ -41,90 +585,38 @@ class _RecentOutfitsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = Provider.of<OutfitProvider>(context);
 
+    // The hero already shows the newest fit; this row picks up from the second.
+    final rest = provider.outfits.skip(1).take(8).toList();
+    if (provider.isLoading || provider.error != null || rest.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── section header ──────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Recent outfits',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              if (!provider.isLoading &&
-                  provider.error == null &&
-                  provider.outfits.isNotEmpty)
-                TextButton(
-                  focusNode: FocusNode(skipTraversal: true),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.black),
-                  clipBehavior: Clip.none,
-                  onPressed: () {},
-                  child: Text(
-                    'View all',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith( 
-                          color: const Color.fromARGB(129, 0, 0, 0),
-                            // decoration: TextDecoration.underline,
-                          ),
-                  )
-                )
-            ],
+        _SectionHeader(
+          title: 'More fits',
+          trailing: 'All ${provider.outfits.length}',
+          onTrailingTap: () => context.go('/wardrobe'),
+        ),
+        SizedBox(
+          height: 208,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: _gutter),
+            itemCount: rest.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) => _OutfitCard(resolved: rest[index]),
           ),
         ),
-
-        // ── content ─────────────────────────────────────────────────────
-        if (provider.isLoading)
-          const _LoadingRow()
-        else if (provider.error != null)
-          _ErrorNote(message: provider.error!)
-        else if (provider.outfits.isEmpty)
-          const _EmptyNote()
-        else
-          _OutfitScrollRow(
-            outfits: provider.outfits.take(5).toList(),
-          ),
-
-        const SizedBox(height: 8),
+        const SizedBox(height: _sectionGap),
       ],
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Horizontal scroll row of outfit cards
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _OutfitScrollRow extends StatelessWidget {
-  const _OutfitScrollRow({required this.outfits});
-
-  final List<ResolvedOutfit> outfits;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 220,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: outfits.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, index) =>
-            _OutfitCard(resolved: outfits[index]),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Individual outfit card
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _OutfitCard extends StatelessWidget {
   const _OutfitCard({required this.resolved});
-
   final ResolvedOutfit resolved;
 
   @override
@@ -136,40 +628,35 @@ class _OutfitCard extends StatelessWidget {
         ),
       ),
       child: SizedBox(
-        width: 160,
+        width: 150,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── preview thumbnail ────────────────────────────────────────
             Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  color: Colors.grey[50],
-                  child: resolved.outfit.canvasItems?.isNotEmpty == true
-                      ? _CanvasPreview(resolved: resolved)
-                      : _ImageGrid(items: resolved.items),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _P.canvas,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: _P.line),
                 ),
+                child: _OutfitPreview(resolved: resolved),
               ),
             ),
-
-            const SizedBox(height: 6),
-
-            // ── outfit name ──────────────────────────────────────────────
+            const SizedBox(height: 10),
             Text(
               resolved.outfit.name,
-              style: Theme.of(context).textTheme.titleSmall,
+              style: _Type.cardTitle(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-
-            // ── item count ───────────────────────────────────────────────
+            const SizedBox(height: 3),
             Text(
-              '${resolved.items.length} item${resolved.items.length == 1 ? '' : 's'}',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontStyle: FontStyle.normal, fontSize: 10),
+              '${_itemCount(resolved.items.length)} · ${_timeAgo(resolved.outfit.createdAt)}',
+              style: _Type.meta(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -179,8 +666,171 @@ class _OutfitCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Canvas-accurate preview  (bounding-box approach from home.dart)
+// New in wardrobe — most recently added pieces
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _NewInWardrobeSection extends StatelessWidget {
+  const _NewInWardrobeSection({required this.userId});
+  final String? userId;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<ItemProvider>(context);
+    final items = provider.items.take(12).toList();
+
+    if (provider.isLoading || provider.error != null || items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(
+          title: 'New in your wardrobe',
+          trailing: 'All ${provider.items.length}',
+          onTrailingTap: () => context.go('/wardrobe'),
+        ),
+        SizedBox(
+          height: 84,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: _gutter),
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (context, index) => _ItemTile(
+              item: items[index],
+              userId: userId,
+            ),
+          ),
+        ),
+        const SizedBox(height: _sectionGap),
+      ],
+    );
+  }
+}
+
+class _ItemTile extends StatelessWidget {
+  const _ItemTile({required this.item, required this.userId});
+  final ClothingItem item;
+  final String? userId;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: userId == null
+          ? null
+          : () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ItemPage(
+                    item: item,
+                    userId: userId!,
+                    isEditing: true,
+                  ),
+                ),
+              ),
+      child: Container(
+        width: 84,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: _P.canvas,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _P.line),
+        ),
+        child: CachedNetworkImage(
+          imageUrl: item.imageUrl,
+          fit: BoxFit.contain,
+          placeholder: (_, _) => const SizedBox.shrink(),
+          errorWidget: (_, _, _) =>
+              const Icon(Icons.broken_image_outlined, size: 16, color: _P.inkFaint),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Wardrobe stats strip
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WardrobeStats extends StatelessWidget {
+  const _WardrobeStats();
+
+  @override
+  Widget build(BuildContext context) {
+    final items = Provider.of<ItemProvider>(context);
+    final outfits = Provider.of<OutfitProvider>(context);
+
+    if (items.isLoading || outfits.isLoading) return const SizedBox.shrink();
+    if (items.items.isEmpty && outfits.outfits.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final categories = items.items.map((i) => i.type).toSet().length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _gutter),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: _P.surface,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            _Stat(value: items.items.length, label: 'PIECES'),
+            const _StatDivider(),
+            _Stat(value: outfits.outfits.length, label: 'FITS'),
+            const _StatDivider(),
+            _Stat(value: categories, label: 'CATEGORIES'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.value, required this.label});
+  final int value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text('$value', style: _Type.stat()),
+          const SizedBox(height: 5),
+          Text(label, style: _Type.eyebrow(_P.inkMuted)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 30, color: _P.line);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Outfit preview — canvas-accurate layout, falling back to an image grid
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _OutfitPreview extends StatelessWidget {
+  const _OutfitPreview({required this.resolved});
+  final ResolvedOutfit resolved;
+
+  @override
+  Widget build(BuildContext context) {
+    return resolved.outfit.canvasItems?.isNotEmpty == true
+        ? _CanvasPreview(resolved: resolved)
+        : _ImageGrid(items: resolved.items);
+  }
+}
 
 class _CanvasPreview extends StatelessWidget {
   const _CanvasPreview({required this.resolved});
@@ -233,7 +883,7 @@ class _CanvasPreview extends StatelessWidget {
                   child: Transform(
                     alignment: Alignment.center,
                     transform: Matrix4.identity()
-                      ..scale(c.scale)
+                      ..scaleByDouble(c.scale, c.scale, c.scale, 1)
                       ..rotateZ(c.rotation),
                     child: CachedNetworkImage(
                       imageUrl: itemById[c.itemId]!.imageUrl,
@@ -253,22 +903,18 @@ class _CanvasPreview extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Fallback: 2×2 image grid when no canvas state is saved
-// ─────────────────────────────────────────────────────────────────────────────
-
+/// Fallback: tiled images when an outfit has no saved canvas state.
 class _ImageGrid extends StatelessWidget {
   const _ImageGrid({required this.items});
 
-  final List items;
+  final List<ClothingItem> items;
 
   @override
   Widget build(BuildContext context) {
     final preview = items.take(4).toList();
     if (preview.isEmpty) {
-      return Center(
-        child: Icon(Icons.checkroom_outlined,
-            size: 32, color: Colors.grey[300]),
+      return const Center(
+        child: Icon(Icons.checkroom_outlined, size: 32, color: _P.line),
       );
     }
     if (preview.length == 1) {
@@ -279,20 +925,18 @@ class _ImageGrid extends StatelessWidget {
         errorWidget: (_, _, _) => const Icon(Icons.broken_image),
       );
     }
-    // 2-column grid for 2–4 items.
     return GridView.count(
       crossAxisCount: 2,
+      mainAxisSpacing: 6,
+      crossAxisSpacing: 6,
       physics: const NeverScrollableScrollPhysics(),
       children: preview.map((item) {
-        return Container(
-          color: Colors.grey[100],
-          child: CachedNetworkImage(
-            imageUrl: item.imageUrl,
-            fit: BoxFit.contain,
-            placeholder: (_, _) => const SizedBox.shrink(),
-            errorWidget: (_, _, _) =>
-                const Icon(Icons.broken_image, size: 16),
-          ),
+        return CachedNetworkImage(
+          imageUrl: item.imageUrl,
+          fit: BoxFit.contain,
+          placeholder: (_, _) => const SizedBox.shrink(),
+          errorWidget: (_, _, _) =>
+              const Icon(Icons.broken_image, size: 16),
         );
       }).toList(),
     );
@@ -300,80 +944,45 @@ class _ImageGrid extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// State widgets
+// Loading / error states
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _LoadingRow extends StatelessWidget {
-  const _LoadingRow();
+/// Breathing placeholder for the hero card while outfits load.
+class _HeroSkeleton extends StatefulWidget {
+  const _HeroSkeleton();
 
   @override
-  Widget build(BuildContext context) {
-    // Shimmer-style placeholder cards while loading.
-    return SizedBox(
-      height: 220,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: 3,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (_, _) => SizedBox(
-          width: 160,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                  width: 100, height: 10,
-                  color: Colors.grey[100]),
-              const SizedBox(height: 4),
-              Container(
-                  width: 60, height: 8,
-                  color: Colors.grey[100]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  State<_HeroSkeleton> createState() => _HeroSkeletonState();
 }
 
-class _EmptyNote extends StatelessWidget {
-  const _EmptyNote();
+class _HeroSkeletonState extends State<_HeroSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 28),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey[200]!),
+      padding: const EdgeInsets.symmetric(horizontal: _gutter),
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 0.45, end: 1).animate(
+          CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
         ),
-        child: Column(
-          children: [
-            Icon(Icons.bookmark_border_outlined,
-                size: 32, color: Colors.grey[400]),
-            const SizedBox(height: 8),
-            Text(
-              'No outfits yet — build one on the canvas',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontStyle: FontStyle.normal, color: Colors.grey[500]),
-              textAlign: TextAlign.center,
-            ),
-          ],
+        child: Container(
+          height: 372,
+          decoration: BoxDecoration(
+            color: _P.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: _P.line),
+          ),
         ),
       ),
     );
@@ -387,14 +996,46 @@ class _ErrorNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Text(
-        'Could not load outfits: $message',
-        style: Theme.of(context)
-            .textTheme
-            .bodyMedium
-            ?.copyWith(color: Colors.red[400], fontStyle: FontStyle.normal),
+      padding: const EdgeInsets.symmetric(horizontal: _gutter),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF6F5),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFFFDBD6)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.error_outline, size: 16, color: Colors.red[400]),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: _Type.meta(_P.inkMuted).copyWith(height: 1.5, fontSize: 11),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Formatting helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+String _itemCount(int n) => '$n item${n == 1 ? '' : 's'}';
+
+String _timeAgo(DateTime when) {
+  final diff = DateTime.now().difference(when);
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
+  if (diff.inDays < 365) return '${(diff.inDays / 30).floor()}mo ago';
+  return '${(diff.inDays / 365).floor()}y ago';
 }

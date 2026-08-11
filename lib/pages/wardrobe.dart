@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // components
-import 'package:virtual_wardrobe/components/Expandable_FAB.dart';
+import 'package:virtual_wardrobe/components/expandable_fab.dart';
 
 // pages
 import 'package:virtual_wardrobe/pages/fits.dart';
@@ -18,6 +18,10 @@ import 'package:virtual_wardrobe/models/clothing_item.dart';
 
 // services
 import 'package:virtual_wardrobe/services/ai_service.dart';
+import 'package:virtual_wardrobe/services/clothing_storage.dart';
+
+// utils
+import 'package:virtual_wardrobe/utils/error_messages.dart';
 
 class WardrobePage extends StatefulWidget {
   const WardrobePage({super.key, required this.userId});
@@ -114,8 +118,8 @@ class _WardrobePageState extends State<WardrobePage> {
                 Navigator.pop(ctx);
                 final img = await picker.pickImage(
                   source: ImageSource.camera,
-                  maxWidth: 1920,
-                  maxHeight: 1920,
+                  maxWidth: 1024,
+                  maxHeight: 1024,
                 );
                 if (img != null && mounted) await _processAndShowForm(File(img.path));
               },
@@ -126,8 +130,8 @@ class _WardrobePageState extends State<WardrobePage> {
               onTap: () async {
                 Navigator.pop(ctx);
                 final imgs = await picker.pickMultiImage(
-                  maxWidth: 1920,
-                  maxHeight: 1920,
+                  maxWidth: 1024,
+                  maxHeight: 1024,
                 );
                 for (final img in imgs) {
                   if (!mounted) return;
@@ -210,9 +214,8 @@ class _WardrobePageState extends State<WardrobePage> {
       debugPrint('[Wardrobe] DB insert OK');
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
-        );
+        showErrorSnackBar(context, e,
+            fallback: "Couldn't save your item. Please try again.");
       }
     }
   }
@@ -327,6 +330,90 @@ class _ClothingFormState extends State<_ClothingForm> {
     super.dispose();
   }
 
+  /// Communicates how AI processing went, so a failed tagging or background
+  /// removal is visible instead of leaving the user with a blank form.
+  Widget _buildAiStatus(BuildContext context) {
+    final r = widget.aiResult;
+    final children = <Widget>[];
+
+    if (r.tags.isNotEmpty) {
+      // Tagging succeeded — the original "AI filled" badge.
+      children.add(Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              '✦ AI filled',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Review and edit before saving',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontStyle: FontStyle.normal, color: Colors.grey[500]),
+            ),
+          ),
+        ],
+      ));
+    } else {
+      // Tagging failed or found nothing — prompt the user to fill it in.
+      children.add(_noticeRow(
+        icon: Icons.auto_awesome_outlined,
+        text: "Couldn't auto-tag this item. Please add the details below.",
+      ));
+    }
+
+    // Background removal fell back to the original image, so the item keeps its
+    // background and won't layer cleanly in the canvas outfit builder.
+    if (!r.backgroundRemoved) {
+      children.add(const SizedBox(height: 8));
+      children.add(_noticeRow(
+        icon: Icons.image_outlined,
+        text: "Couldn't remove the background — the original image is used.",
+      ));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
+  Widget _noticeRow({required IconData icon, required String text}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.amber[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.amber[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: Colors.amber[800]),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontStyle: FontStyle.normal, color: Colors.amber[900]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
@@ -370,39 +457,9 @@ class _ClothingFormState extends State<_ClothingForm> {
                   ),
                 ),
 
-                // ── AI badge ──────────────────────────────────────────
-                if (widget.aiResult.tags.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          '✦ AI filled',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Review and edit before saving',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(
-                                fontStyle: FontStyle.normal,
-                                color: Colors.grey[500]),
-                      ),
-                    ],
-                  ),
-                ],
+                // ── AI status ─────────────────────────────────────────
+                const SizedBox(height: 10),
+                _buildAiStatus(context),
 
                 const SizedBox(height: 16),
 
@@ -528,9 +585,8 @@ class _ClothingFormState extends State<_ClothingForm> {
       if (mounted) Navigator.of(context).pop(item);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
-        );
+        showErrorSnackBar(context, e,
+            fallback: "Couldn't upload the photo. Please try again.");
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -538,22 +594,8 @@ class _ClothingFormState extends State<_ClothingForm> {
   }
 
   Future<String> _uploadToSupabase(File file, ClothingType type, String suffix) async {
-    final folder   = type.name.toLowerCase();
-    final fileExt  = file.path.split('.').last;
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}_$suffix.$fileExt';
-    final filePath = '$folder/$fileName';
-    const bucket   = 'Clothing images';
-
-    debugPrint('[Wardrobe] Uploading $suffix: $bucket/$filePath (${file.lengthSync()} bytes)');
-
-    await Supabase.instance.client.storage
-        .from(bucket)
-        .upload(filePath, file);
-
-    final url = Supabase.instance.client.storage
-        .from(bucket)
-        .getPublicUrl(filePath);
-
+    debugPrint('[Wardrobe] Uploading $suffix (${file.lengthSync()} bytes)');
+    final url = await ClothingStorage.uploadImage(file, type, suffix: suffix);
     debugPrint('[Wardrobe] Upload OK ($suffix): $url');
     return url;
   }

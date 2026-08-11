@@ -19,7 +19,18 @@ class OutfitsPage extends StatelessWidget {
     }
 
     if (provider.error != null) {
-      return Scaffold(body: Center(child: Text('Error: ${provider.error}')));
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              provider.error ?? 'Something went wrong. Please try again.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ),
+      );
     }
 
     if (provider.outfits.isEmpty) {

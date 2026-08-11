@@ -14,6 +14,7 @@ import 'package:virtual_wardrobe/models/canvas_item.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/services/itemprovider.dart';
+import 'package:virtual_wardrobe/utils/error_messages.dart';
 
 class CanvasScreen extends StatefulWidget {
   const CanvasScreen({super.key, required this.userId});
@@ -52,7 +53,18 @@ class _CanvasScreenState extends State<CanvasScreen>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (provider.error != null) {
-      return Scaffold(body: Center(child: Text('Error: ${provider.error}')));
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              provider.error ?? 'Something went wrong. Please try again.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ),
+      );
     }
 
     final filteredItems = ClothesViewModel.categorizeItems(provider.items);
@@ -198,7 +210,10 @@ class _CanvasScreenState extends State<CanvasScreen>
       await _saveOutfit(name);
       if (mounted) _showSnack('Outfit "$name" saved!');
     } catch (e) {
-      if (mounted) _showSnack('Save failed: $e');
+      if (mounted) {
+        _showSnack(friendlyError(e,
+            fallback: "Couldn't save your outfit. Please try again."));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -318,6 +333,8 @@ class _CanvasScreenState extends State<CanvasScreen>
                   _initialRotation + details.rotation;
             }
           });
+        
+
         },
         child: Transform(
           alignment: Alignment.center,

@@ -48,7 +48,7 @@ serve(async (req: Request) => {
 
     if (hfRes.ok) {
       const ct = hfRes.headers.get("content-type") ?? "";
-      const hfBytes = new Uint8Array(await hfRes.arrayBuffer());
+      const hfBytes = new Uint8Array(await hfRes.arrayBuffer());D
       console.log(`[remove-background] HF OK — ct=${ct}, bytes=${hfBytes.length}, magic=[${hfBytes[0]},${hfBytes[1]},${hfBytes[2]},${hfBytes[3]}]`);
 
       // PNG returned directly (transparent, ready to crop).
@@ -71,7 +71,7 @@ serve(async (req: Request) => {
 
         if (subject?.mask) {
           const maskBytes = Uint8Array.from(atob(subject.mask), (c) => c.charCodeAt(0));
-          const composited = await compositeWithMask(imageBytes, maskBytes, mimeType);
+          const composited = compositeWithMask(imageBytes, maskBytes, mimeType);
           if (composited) {
             const cropped = cropTransparent(composited);
             return new Response(cropped, { headers: { ...CORS, "Content-Type": "image/png" } });
@@ -98,11 +98,11 @@ serve(async (req: Request) => {
 
 // Applies a grayscale mask PNG as the alpha channel of the original image.
 // Mask convention: white (255) = keep, black (0) = transparent.
-async function compositeWithMask(
+function compositeWithMask(
   imgBytes: Uint8Array,
   maskBytes: Uint8Array,
   mimeType: string,
-): Promise<Uint8Array | null> {
+): Uint8Array | null {
   try {
     let width: number, height: number, rgbaData: Uint8Array;
 

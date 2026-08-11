@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:virtual_wardrobe/models/clothing_item.dart';
+import 'package:virtual_wardrobe/utils/image_utils.dart';
 
 /// Result returned after AI processing an image.
 class AiImageResult {
@@ -23,6 +25,14 @@ class AiImageResult {
   final String? style;
   final String? description;
 
+  /// True when background removal produced a transparent cutout; false when it
+  /// fell back to the original image (so the item won't work in the canvas).
+  final bool backgroundRemoved;
+
+  /// True when AI tagging completed; false when it failed or was skipped, so
+  /// the tag / colour / style fields are empty and the user must fill them in.
+  final bool taggingSucceeded;
+
   const AiImageResult({
     required this.processedFile,
     this.cutoutFile,
@@ -31,6 +41,8 @@ class AiImageResult {
     this.colours = const [],
     this.style,
     this.description,
+    this.backgroundRemoved = false,
+    this.taggingSucceeded = false,
   });
 }
 
@@ -41,10 +53,6 @@ class AiService {
   // In-memory cache: file-stat key → tag result. Avoids re-calling Claude
   // when the user uploads the same image more than once in a session.
   final Map<String, AiImageResult> _tagCache = {};
-
-  // Keys are read from .env — never hard-code them.
-  String get _anthropicKey =>
-      dotenv.env['ANTHROPIC_API_KEY'] ?? '';
 
   // ── Public entry point ────────────────────────────────────────────────────
 
@@ -74,13 +82,15 @@ class AiService {
     final AiImageResult? tags = await _tagWithClaude(displayFile);
 
     return AiImageResult(
-      processedFile: displayFile,
-      cutoutFile:    cutoutFile,
-      detectedType:  tags?.detectedType,
-      tags:          tags?.tags    ?? [],
-      colours:       tags?.colours ?? [],
-      style:         tags?.style,
-      description:   tags?.description,
+      processedFile:     displayFile,
+      cutoutFile:        cutoutFile,
+      backgroundRemoved: cutoutFile != null,
+      taggingSucceeded:  tags != null,
+      detectedType:      tags?.detectedType,
+      tags:              tags?.tags    ?? [],
+      colours:           tags?.colours ?? [],
+      style:             tags?.style,
+      description:       tags?.description,
     );
   }
 
@@ -126,115 +136,69 @@ class AiService {
 
   // ── Claude vision tagging ─────────────────────────────────────────────────
 
-  /// Sends the image to Claude and asks it to return structured JSON tags.
+  /// Uploads the image to the `tag-clothing` edge function, which runs the
+  /// Claude vision call server-side and returns structured JSON tags.
+  /// The Anthropic key never leaves the server.
   Future<AiImageResult?> _tagWithClaude(File imageFile) async {
-    if (_anthropicKey.isEmpty) {
-      debugPrint('[AiService] ANTHROPIC_API_KEY not set — skipping tagging');
+    final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+    if (supabaseUrl.isEmpty) {
+      debugPrint('[AiService] SUPABASE_URL not set — skipping tagging');
       return null;
     }
 
-    // Cache key: size + last-modified avoids re-calling Claude for the same file.
+    // Cache key: size + last-modified avoids re-calling the function for the
+    // same file within a session.
     final stat = await imageFile.stat();
     final cacheKey = '${stat.size}_${stat.modified.millisecondsSinceEpoch}';
     if (_tagCache.containsKey(cacheKey)) {
-      debugPrint('[AiService] Tag cache hit — skipping Claude call');
+      debugPrint('[AiService] Tag cache hit — skipping tag call');
       return _tagCache[cacheKey];
     }
 
     try {
-      final imageBytes = await imageFile.readAsBytes();
-      final base64Image = base64Encode(imageBytes);
+      final url = '$supabaseUrl/functions/v1/tag-clothing';
+      // Prefer the signed-in user's access token so the function can verify
+      // the caller; fall back to the anon key (also a valid Supabase JWT).
+      final token = Supabase.instance.client.auth.currentSession?.accessToken ??
+          dotenv.env['SUPABASE_PUBLISHABLE_KEY'] ??
+          dotenv.env['SUPABASE_ANON_KEY'] ??
+          '';
 
-      // Detect mime type from magic bytes — extension is unreliable because
-      // the edge function fallback returns JPEG bytes in a .png-named file.
-      final mediaType = (imageBytes.length >= 4 &&
-              imageBytes[0] == 0x89 &&
-              imageBytes[1] == 0x50 &&
-              imageBytes[2] == 0x4E &&
-              imageBytes[3] == 0x47)
-          ? 'image/png'
-          : 'image/jpeg';
+      // Downscale before upload — tagging doesn't need full resolution, and a
+      // smaller image cuts the upload, the base64 payload, and vision tokens.
+      // The edge function detects the real mime from magic bytes, so the
+      // filename here is only a hint.
+      final rawBytes = await imageFile.readAsBytes();
+      final bytes = await downscaleImage(rawBytes, maxDimension: 1024);
 
-      final body = jsonEncode({
-        'model': 'claude-haiku-4-5-20251001',
-        'max_tokens': 256,
-        'messages': [
-          {
-            'role': 'user',
-            'content': [
-              {
-                'type': 'image',
-                'source': {
-                  'type':       'base64',
-                  'media_type': mediaType,
-                  'data':       base64Image,
-                },
-              },
-              {
-                'type': 'text',
-                'text': '''You are a fashion tagging assistant. 
-Analyse this clothing item image and respond ONLY with a valid JSON object — no markdown, no explanation, just raw JSON.
+      final request = http.MultipartRequest('POST', Uri.parse(url))
+        ..headers['Authorization'] = 'Bearer $token'
+        ..files.add(http.MultipartFile.fromBytes(
+          'image_file',
+          bytes,
+          filename: 'item.png',
+        ));
 
-Return exactly this structure:
-{
-  "type": "<one of: top | trouser | outwear | dress | shoe | accessory | headwear>",
-  "colours": ["<primary colour>", "<secondary colour if present>"],
-  "tags": ["<tag1>", "<tag2>", "<tag3>"],
-  "style": "<one short style label e.g. casual | formal | streetwear | athleisure | minimalist | vintage | preppy>",
-  "description": "<one sentence describing the item>"
-}
-
-Rules:
-- colours: use simple English colour names (e.g. "navy blue", "off-white")
-- tags: 2–5 short lowercase words (material, occasion, season, fit, etc.)
-- style: single word or short phrase
-- description: max 15 words, factual'''
-              },
-            ],
-          }
-        ],
-      });
-
-      final response = await http
-          .post(
-            Uri.parse('https://api.anthropic.com/v1/messages'),
-            headers: {
-              'Content-Type':      'application/json',
-              'x-api-key':         _anthropicKey,
-              'anthropic-version': '2023-06-01',
-            },
-            body: body,
-          )
-          .timeout(const Duration(seconds: 30));
+      final streamed =
+          await request.send().timeout(const Duration(seconds: 30));
+      final response = await http.Response.fromStream(streamed);
 
       if (response.statusCode != 200) {
-        debugPrint('[AiService] Claude error ${response.statusCode}: ${response.body}');
+        debugPrint(
+            '[AiService] tag-clothing error ${response.statusCode}: ${response.body}');
         return null;
       }
 
-      final decoded     = jsonDecode(response.body) as Map<String, dynamic>;
-      final contentList = decoded['content'] as List<dynamic>;
-      final rawText     = (contentList.first as Map<String, dynamic>)['text'] as String;
-
-      // Strip any accidental markdown fences before parsing.
-      final jsonText = rawText
-          .replaceAll(RegExp(r'```json\s*'), '')
-          .replaceAll(RegExp(r'```\s*'), '')
-          .trim();
-
-      final Map<String, dynamic> parsed =
-          jsonDecode(jsonText) as Map<String, dynamic>;
+      final parsed = jsonDecode(response.body) as Map<String, dynamic>;
 
       List<String> toStringList(dynamic v) =>
           v is List ? v.map((e) => e.toString()).toList() : [];
 
-      final detectedType = _parseType(parsed['type'] as String?);
-
-      debugPrint('[AiService] Claude tags: $parsed');
+      debugPrint('[AiService] tags: $parsed');
 
       final result = AiImageResult(
         processedFile: imageFile,
-        detectedType:  detectedType,
+        detectedType:  _parseType(parsed['type'] as String?),
         colours:       toStringList(parsed['colours']),
         tags:          toStringList(parsed['tags']),
         style:         parsed['style'] as String?,
@@ -243,7 +207,7 @@ Rules:
       _tagCache[cacheKey] = result;
       return result;
     } catch (e) {
-      debugPrint('[AiService] Claude tagging failed: $e');
+      debugPrint('[AiService] tagging failed: $e');
       return null;
     }
   }

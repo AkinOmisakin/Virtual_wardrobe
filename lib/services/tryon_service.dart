@@ -2,8 +2,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:virtual_wardrobe/models/clothing_item.dart';
+import 'package:virtual_wardrobe/services/credits_service.dart';
+import 'package:virtual_wardrobe/utils/user_facing_exception.dart';
 
 /// Progress callback so the UI can show which garment is being applied.
 typedef TryOnProgress = void Function(int currentStep, int totalSteps, String label);
@@ -12,12 +15,28 @@ class TryOnService {
   TryOnService._();
   static final TryOnService instance = TryOnService._();
 
-  String get _replicateKey => dotenv.env['REPLICATE_API_TOKEN'] ?? '';
+  // The Replicate token and pinned model version now live in the `try-on`
+  // edge function — the client only ever talks to Supabase.
+  String get _supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
 
-  // Pinned model version for cuuupid/idm-vton. Update if the model is revised.
-  // Get the latest hash from replicate.com/cuuupid/idm-vton/api
-  static const _modelVersion =
-      'c871bb9b046607b680449ecbae55fd8c6d945e0a1948644bf2361b3d021d3ff4';
+  /// Try-on spends credits, so it is billed to a real account. There is no
+  /// publishable-key fallback any more — the edge function rejects anything
+  /// that is not a user session with 401.
+  String _requireAccessToken() {
+    final token = Supabase.instance.client.auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw const UserFacingException(
+        'Sign in to use try-on.',
+        code: 'unauthenticated',
+      );
+    }
+    return token;
+  }
+
+  Map<String, String> get _headers => {
+        'Authorization': 'Bearer ${_requireAccessToken()}',
+        'Content-Type': 'application/json',
+      };
 
   // ── public entry point ──────────────────────────────────────────────────────
 
@@ -30,23 +49,46 @@ class TryOnService {
     required List<ClothingItem> items,
     TryOnProgress? onProgress,
   }) async {
-    if (_replicateKey.isEmpty) {
-      throw Exception('REPLICATE_API_TOKEN not set in .env');
+    if (_supabaseUrl.isEmpty) {
+      throw Exception('SUPABASE_URL not set in .env');
     }
     if (items.isEmpty) {
       throw Exception('No items to try on.');
     }
 
+    _requireAccessToken();
+
     // Order matters for layering: bottoms first, then tops, then outerwear,
     // so outer layers visually sit on top. Dresses replace top+bottom.
-    final ordered = _orderForLayering(items);
+    final ordered = orderForLayering(items);
+
+    // Each garment is a separate paid prediction. Check the whole outfit is
+    // affordable before starting, otherwise the user pays for the first two
+    // layers and then hits a 402 on the third with nothing usable to show.
+    // Advisory only — the edge function is still the authority.
+    final billable = ordered.where((i) => categoryFor(i.type) != null).length;
+    if (billable == 0) {
+      throw const UserFacingException(
+        "None of those items can be tried on yet — try-on supports tops, "
+        "bottoms, outerwear and dresses.",
+      );
+    }
+    final credits = await CreditsService.instance.balance();
+    if (credits < billable) {
+      throw UserFacingException(
+        credits == 0
+            ? "You're out of try-on credits."
+            : 'That outfit needs $billable credits and you have $credits.',
+        code: 'insufficient_credits',
+      );
+    }
 
     String currentHuman = personImageUrl;
     final total = ordered.length;
 
     for (var i = 0; i < ordered.length; i++) {
       final item = ordered[i];
-      final category = _categoryFor(item.type);
+      final category = categoryFor(item.type);
 
       // Skip items IDM-VTON can't place (e.g. accessories, headwear, shoes).
       if (category == null) {
@@ -67,7 +109,7 @@ class TryOnService {
     return currentHuman;
   }
 
-  // ── single garment try-on (one Replicate prediction) ────────────────────────
+  // ── single garment try-on (one Replicate prediction, via edge function) ─────
 
   Future<String> _runSingleTryOn({
     required String humanImageUrl,
@@ -75,51 +117,49 @@ class TryOnService {
     required String category,
     required String garmentDescription,
   }) async {
-    // 1. Create the prediction
+    final url = '$_supabaseUrl/functions/v1/try-on';
+
+    // 1. Create the prediction. The edge function holds the Replicate token
+    // and the pinned model version, and returns just the prediction id.
     final createResp = await http.post(
-      Uri.parse('https://api.replicate.com/v1/predictions'),
-      headers: {
-        'Authorization': 'Bearer $_replicateKey',
-        'Content-Type': 'application/json',
-      },
+      Uri.parse(url),
+      headers: _headers,
       body: jsonEncode({
-        'version': _modelVersion,
-        'input': {
-          'human_img':   humanImageUrl,
-          'garm_img':    garmentImageUrl,
-          'category':    category,
-          'garment_des': garmentDescription,
-          'crop':        true,   // person photos are rarely a perfect 3:4
-          'steps':       30,
-        },
+        'action':      'create',
+        'human_img':   humanImageUrl,
+        'garm_img':    garmentImageUrl,
+        'category':    category,
+        'garment_des': garmentDescription,
       }),
     );
 
-    if (createResp.statusCode != 201) {
-      throw Exception('Replicate create failed: ${createResp.body}');
+    if (createResp.statusCode != 200) {
+      throw _mapError(createResp, 'Try-on create failed');
     }
 
     final created = jsonDecode(createResp.body) as Map<String, dynamic>;
-    final getUrl = (created['urls'] as Map<String, dynamic>)['get'] as String;
+    final id = created['id'] as String?;
+    if (id == null) throw Exception('Try-on create returned no id');
 
     // 2. Poll until the prediction is done.
-    return _pollPrediction(getUrl);
+    return _pollPrediction(url, id);
   }
 
-  Future<String> _pollPrediction(String getUrl) async {
+  Future<String> _pollPrediction(String url, String id) async {
     const maxAttempts = 60;          // ~60 × 2s = up to 2 minutes
     const interval = Duration(seconds: 2);
 
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       await Future.delayed(interval);
 
-      final resp = await http.get(
-        Uri.parse(getUrl),
-        headers: {'Authorization': 'Bearer $_replicateKey'},
+      final resp = await http.post(
+        Uri.parse(url),
+        headers: _headers,
+        body: jsonEncode({'action': 'poll', 'id': id}),
       );
 
       if (resp.statusCode != 200) {
-        throw Exception('Replicate poll failed: ${resp.body}');
+        throw _mapError(resp, 'Try-on poll failed');
       }
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -131,7 +171,7 @@ class TryOnService {
           // Output is a single URL string (or occasionally a list).
           if (output is String) return output;
           if (output is List && output.isNotEmpty) return output.first as String;
-          throw Exception('Replicate returned empty output');
+          throw Exception('Try-on returned empty output');
         case 'failed':
         case 'canceled':
           throw Exception('Try-on failed: ${data['error'] ?? status}');
@@ -145,8 +185,37 @@ class TryOnService {
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
+  /// The edge function returns `{error, code}` for the cases a user can act on
+  /// (out of credits, signed out, daily cap). Those messages are written for
+  /// display, so they are passed through; anything else stays generic.
+  Exception _mapError(http.Response resp, String fallback) {
+    String? message;
+    String? code;
+    try {
+      final body = jsonDecode(resp.body) as Map<String, dynamic>;
+      message = body['error'] as String?;
+      code = body['code'] as String?;
+    } on FormatException {
+      // Non-JSON body (e.g. a gateway error page) — fall through to generic.
+    }
+
+    switch (resp.statusCode) {
+      case 401:
+      case 402:
+      case 503:
+        return UserFacingException(
+          message ?? 'Try-on is unavailable right now.',
+          code: code,
+        );
+      default:
+        return Exception('$fallback: ${resp.body}');
+    }
+  }
+
   /// Maps a ClothingType to an IDM-VTON category, or null if unsupported.
-  String? _categoryFor(ClothingType type) {
+  /// Public + static so it can be unit-tested without a network call.
+  @visibleForTesting
+  static String? categoryFor(ClothingType type) {
     switch (type) {
       case ClothingType.top:
       case ClothingType.outwear:
@@ -164,7 +233,9 @@ class TryOnService {
 
   /// Layering order: lower body → upper body → outerwear.
   /// Dresses are treated as a single full-body layer applied first.
-  List<ClothingItem> _orderForLayering(List<ClothingItem> items) {
+  /// Public + static so it can be unit-tested without a network call.
+  @visibleForTesting
+  static List<ClothingItem> orderForLayering(List<ClothingItem> items) {
     int rank(ClothingType t) {
       switch (t) {
         case ClothingType.dress:   return 0;

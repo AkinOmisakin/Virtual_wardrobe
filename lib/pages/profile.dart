@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:virtual_wardrobe/models/user_post.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/services/userprofileprovider.dart';
+import 'package:virtual_wardrobe/utils/error_messages.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -603,9 +604,8 @@ class _OptionsDrawer extends StatelessWidget {
                 await Supabase.instance.client.auth.signOut();
                 await GoogleSignIn.instance.signOut();
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Log out failed: $e')),
-                );
+                showErrorSnackBar(context, e,
+                    fallback: "Couldn't log out. Please try again.");
               }
             },
             child: const Text('Log out', style: TextStyle(color: Colors.red)),
@@ -771,9 +771,8 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
-        );
+        showErrorSnackBar(context, e,
+            fallback: "Couldn't save your profile. Please try again.");
       }
     } finally {
       if (mounted) setState(() => _saving = false);
