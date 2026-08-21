@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:virtual_wardrobe/components/crop_clipper.dart';
 import 'package:virtual_wardrobe/models/clothing_item.dart';
 import 'package:virtual_wardrobe/pages/canvas.dart';
 import 'package:virtual_wardrobe/pages/item.dart';
@@ -852,12 +853,12 @@ class _CanvasPreview extends StatelessWidget {
 
     for (final c in canvasItems) {
       if (!itemById.containsKey(c.itemId)) continue;
-      final scaledSize = c.size * c.scale;
-      final overflow   = (scaledSize - c.size) / 2;
-      minX = [minX, c.x - overflow].reduce((a, b) => a < b ? a : b);
-      minY = [minY, c.y - overflow].reduce((a, b) => a < b ? a : b);
-      maxX = [maxX, c.x + c.size + overflow].reduce((a, b) => a > b ? a : b);
-      maxY = [maxY, c.y + c.size + overflow].reduce((a, b) => a > b ? a : b);
+      // Accounts for scale and crop, so cropped items don't leave dead space.
+      final bounds = c.visualBounds;
+      minX = [minX, bounds.left  ].reduce((a, b) => a < b ? a : b);
+      minY = [minY, bounds.top   ].reduce((a, b) => a < b ? a : b);
+      maxX = [maxX, bounds.right ].reduce((a, b) => a > b ? a : b);
+      maxY = [maxY, bounds.bottom].reduce((a, b) => a > b ? a : b);
     }
 
     // Fallback if nothing valid.
@@ -885,14 +886,17 @@ class _CanvasPreview extends StatelessWidget {
                     transform: Matrix4.identity()
                       ..scaleByDouble(c.scale, c.scale, c.scale, 1)
                       ..rotateZ(c.rotation),
-                    child: CachedNetworkImage(
-                      imageUrl: itemById[c.itemId]!.imageUrl,
-                      width:  c.size,
-                      height: c.size,
-                      fit: BoxFit.contain,
-                      placeholder: (_, _) => const SizedBox.shrink(),
-                      errorWidget: (_, _, _) =>
-                          const Icon(Icons.broken_image, size: 20),
+                    child: ClipRect(
+                      clipper: CropClipper(c.crop),
+                      child: CachedNetworkImage(
+                        imageUrl: itemById[c.itemId]!.imageUrl,
+                        width:  c.size,
+                        height: c.size,
+                        fit: BoxFit.contain,
+                        placeholder: (_, _) => const SizedBox.shrink(),
+                        errorWidget: (_, _, _) =>
+                            const Icon(Icons.broken_image, size: 20),
+                      ),
                     ),
                   ),
                 ),

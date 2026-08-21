@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:virtual_wardrobe/models/user_post.dart';
+import 'package:virtual_wardrobe/services/clothing_storage.dart';
 import 'package:virtual_wardrobe/utils/error_messages.dart';
 
 class UserProfile {
@@ -74,6 +75,7 @@ class UserProfileProvider extends ChangeNotifier {
 
   final String userId;
   static const _modelBucket = 'user-models';
+  static const _avatarBucket = 'avatars';
 
   UserProfile? _profile;
   List<UserPost> _posts = [];
@@ -151,6 +153,62 @@ class UserProfileProvider extends ChangeNotifier {
         .from('profiles')
         .update(updated)
         .eq('id', userId);
+  }
+
+  // ── avatar ─────────────────────────────────────────────────────────────────
+
+  /// Uploads [photo] as the user's avatar and points `avatar_url` at it.
+  ///
+  /// Every upload gets a fresh filename. Overwriting one fixed path would leave
+  /// the URL unchanged, and both the Storage CDN and the on-device image cache
+  /// would happily go on serving the old picture — the classic "I changed my
+  /// photo and nothing happened" bug.
+  Future<void> uploadAvatar(File photo) async {
+    final ext = ClothingStorage.extensionOf(photo.path);
+    final path = '$userId/${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+    final storage = Supabase.instance.client.storage.from(_avatarBucket);
+    await storage.upload(
+      path,
+      photo,
+      fileOptions: FileOptions(contentType: ClothingStorage.contentTypeFor(ext)),
+    );
+
+    await Supabase.instance.client
+        .from('profiles')
+        .update({'avatar_url': storage.getPublicUrl(path)})
+        .eq('id', userId);
+
+    await _pruneAvatars(keep: path);
+  }
+
+  Future<void> removeAvatar() async {
+    await Supabase.instance.client
+        .from('profiles')
+        .update({'avatar_url': null})
+        .eq('id', userId);
+
+    await _pruneAvatars();
+  }
+
+  /// Deletes every avatar file for this user except [keep].
+  ///
+  /// Best effort by design: the profile row is already correct by the time this
+  /// runs, so a storage hiccup here leaves an orphaned file, not a broken
+  /// avatar. Sweeping the whole folder also clears anything left behind by an
+  /// upload that died between putting the file and updating the row.
+  Future<void> _pruneAvatars({String? keep}) async {
+    try {
+      final storage = Supabase.instance.client.storage.from(_avatarBucket);
+      final files = await storage.list(path: userId);
+      final stale = files
+          .map((file) => '$userId/${file.name}')
+          .where((path) => path != keep)
+          .toList();
+      if (stale.isNotEmpty) await storage.remove(stale);
+    } catch (_) {
+      // Orphaned files are not worth failing the user's upload over.
+    }
   }
 
   // ── model photo ────────────────────────────────────────────────────────────

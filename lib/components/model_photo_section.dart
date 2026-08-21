@@ -121,9 +121,9 @@ class _ModelPhotoSectionState extends State<ModelPhotoSection> {
             child: CachedNetworkImage(
               imageUrl: url,
               fit: BoxFit.cover,
-              placeholder: (_, __) =>
+              placeholder: (_, _) =>
                   Container(color: Colors.grey[100]),
-              errorWidget: (_, __, ___) => Container(
+              errorWidget: (_, _, _) => Container(
                 color: Colors.grey[100],
                 child: const Center(child: Icon(Icons.broken_image)),
               ),

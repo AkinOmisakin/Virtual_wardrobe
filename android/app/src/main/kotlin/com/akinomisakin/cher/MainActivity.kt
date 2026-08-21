@@ -1,4 +1,4 @@
-package com.example.virtual_wardrobe
+package com.akinomisakin.cher
 
 import io.flutter.embedding.android.FlutterActivity
 

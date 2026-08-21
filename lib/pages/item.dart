@@ -348,8 +348,8 @@ class _ItemPageState extends State<ItemPage> {
       return CachedNetworkImage(
         imageUrl: _existingImageUrl!,
         fit: BoxFit.contain,
-        placeholder: (_, __) => const Center(child: CircularProgressIndicator()),
-        errorWidget: (_, __, ___) => const Center(child: Icon(Icons.broken_image)),
+        placeholder: (_, _) => const Center(child: CircularProgressIndicator()),
+        errorWidget: (_, _, _) => const Center(child: Icon(Icons.broken_image)),
       );
     }
     // No image yet — show an inviting placeholder.

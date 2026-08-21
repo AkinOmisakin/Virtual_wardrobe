@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Cher</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    max-width: 46rem; margin: 0 auto; padding: 2.5rem 1.25rem 5rem;
+    background: #fff; color: #111;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } }
+  h1 { font-size: 1.5rem; font-weight: 500; margin-bottom: .25rem; }
+  h2 { font-size: 1.05rem; font-weight: 500; margin-top: 2.25rem; }
+  .meta { color: #777; font-size: .8rem; margin-bottom: 2rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; margin: 1rem 0; }
+  th, td { border: 1px solid #8884; padding: .5rem .6rem; text-align: left; vertical-align: top; }
+  code { background: #8881; padding: .1rem .3rem; border-radius: 3px; font-size: .85em; }
+  a { color: inherit; }
+  .box { border: 1px solid #8884; border-left-width: 3px; padding: .85rem 1rem; margin: 1.25rem 0; font-size: .9rem; }
+  ul { padding-left: 1.2rem; }
+</style>
+</head>
+<body>
+
+<h1>Privacy Policy</h1>
+<p class="meta">Cher — Virtual Wardrobe · Last updated: [[DATE]]</p>
+
+<p>
+  This policy explains what Cher collects, why, and who else sees it. It is
+  written to describe what the app actually does rather than to cover every
+  conceivable case.
+</p>
+
+<p>
+  Cher is operated by [[YOUR NAME OR COMPANY]] ("we"). For anything in this
+  policy, contact <a href="mailto:[[CONTACT EMAIL]]">[[CONTACT EMAIL]]</a>.
+</p>
+
+<div class="box">
+  <strong>The short version.</strong> Cher stores photos you upload, including a
+  photo of yourself used for virtual try-on. To generate a try-on image, that
+  photo is sent to an AI provider (Replicate) for processing. We do not sell
+  your data, show you ads, or use your photos to train AI models. You can delete
+  your account and everything in it from inside the app at any time.
+</div>
+
+<h2>What we collect</h2>
+
+<table>
+  <tr><th>Data</th><th>Why</th></tr>
+  <tr>
+    <td>Email address and name, from Google or Apple sign-in</td>
+    <td>To create and identify your account</td>
+  </tr>
+  <tr>
+    <td>Photos of clothing you upload</td>
+    <td>To build your wardrobe and generate try-on images</td>
+  </tr>
+  <tr>
+    <td><strong>A photo of yourself</strong>, if you add one</td>
+    <td>Used as the base image for virtual try-on. Optional — the rest of the app works without it.</td>
+  </tr>
+  <tr>
+    <td>Outfits, canvases and posts you create</td>
+    <td>To save your work between sessions</td>
+  </tr>
+  <tr>
+    <td>Try-on credit balance and transaction history</td>
+    <td>To run the paid try-on feature and handle refunds</td>
+  </tr>
+  <tr>
+    <td>Diagnostic logs (errors, timestamps)</td>
+    <td>To find and fix faults. These do not contain your photos.</td>
+  </tr>
+</table>
+
+<p>
+  We do not collect location, contacts, your device's photo library beyond the
+  images you explicitly pick, or advertising identifiers.
+</p>
+
+<h2>Your photo, specifically</h2>
+
+<p>
+  Virtual try-on works by sending your photo together with a garment image to a
+  third-party AI model. This means:
+</p>
+
+<ul>
+  <li>Your photo leaves our servers and is processed by <strong>Replicate, Inc.</strong>, which runs the try-on model.</li>
+  <li>Photos of clothing are also sent to <strong>Anthropic</strong> for automatic tagging, and to a background-removal service for cutouts.</li>
+  <li>These providers process the images to return a result. We do not grant them permission to use your images to train models.</li>
+  <li>Your content is visible only to you. Cher has no public feed and no way to browse other people's wardrobes or posts.</li>
+</ul>
+
+<p>
+  If you are not comfortable with this, do not add a photo of yourself — every
+  other feature works without one.
+</p>
+
+<h2>Who else processes your data</h2>
+
+<table>
+  <tr><th>Provider</th><th>Role</th><th>What they receive</th></tr>
+  <tr><td>Supabase</td><td>Database, file storage, authentication</td><td>All account data and uploaded images</td></tr>
+  <tr><td>Replicate, Inc.</td><td>Virtual try-on inference</td><td>Your photo and the garment images for that try-on</td></tr>
+  <tr><td>Anthropic</td><td>Automatic clothing tagging</td><td>Photos of clothing items</td></tr>
+  <tr><td>Google (Sign-In, Play)</td><td>Authentication and payments</td><td>Sign-in identity; purchase records</td></tr>
+  <tr><td>Apple</td><td>Authentication, where used</td><td>Sign-in identity</td></tr>
+  <tr><td>RevenueCat</td><td>Purchase validation</td><td>Your account id and purchase records</td></tr>
+</table>
+
+<p>
+  We do not sell personal data or share it with advertisers. Payment card
+  details are handled entirely by the app store and never reach us.
+</p>
+
+<h2>How long we keep it</h2>
+
+<p>
+  Your content is kept until you delete it or delete your account. When you
+  delete your account we remove your garments, outfits, posts, uploaded photos,
+  credit balance and transaction history, and the account itself. Deletion is
+  immediate and permanent — we do not keep backups you can be restored from.
+</p>
+
+<p>
+  Images sent to AI providers for processing are retained according to those
+  providers' own policies, which we do not control.
+</p>
+
+<h2>Deleting your account</h2>
+
+<p>
+  In the app: <strong>Profile → menu → Delete account</strong>. You will be
+  asked to type <code>DELETE</code> to confirm.
+</p>
+
+<p>
+  If you have already uninstalled the app, see
+  <a href="./delete-account.html">the account deletion page</a>.
+</p>
+
+<h2>Your rights</h2>
+
+<p>
+  Depending on where you live, you may have the right to access, correct,
+  export, or erase your personal data, to object to processing, and to complain
+  to a data protection authority. Deleting your account satisfies erasure
+  immediately; for anything else, email
+  <a href="mailto:[[CONTACT EMAIL]]">[[CONTACT EMAIL]]</a> and we will respond
+  within 30 days.
+</p>
+
+<h2>Children</h2>
+
+<p>
+  Cher is not intended for children under 13, and we do not knowingly collect
+  data from them. If you believe a child has created an account, contact us and
+  we will delete it.
+</p>
+
+<h2>Security</h2>
+
+<p>
+  Data is transmitted over HTTPS and stored on Supabase with row-level security,
+  so one account cannot read another's data. No system is perfectly secure; if
+  we discover a breach affecting your data we will notify you.
+</p>
+
+<h2>Changes</h2>
+
+<p>
+  If this policy changes materially we will update the date above and notify you
+  in the app before the change takes effect.
+</p>
+
+</body>
+</html>

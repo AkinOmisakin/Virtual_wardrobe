@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:virtual_wardrobe/components/crop_clipper.dart';
 import 'package:virtual_wardrobe/pages/outfits_details_page.dart';
 import 'package:virtual_wardrobe/models/outfit.dart';
 import 'package:virtual_wardrobe/services/outfitprovider.dart';
@@ -233,7 +234,16 @@ class _OutfitCard extends StatelessWidget {
       ),
     );
     if (confirm == true && outfit.id != null) {
-      await provider.deleteOutfit(outfit.id!);
+      try {
+        await provider.deleteOutfit(outfit.id!);
+      } catch (_) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Couldn't delete your outfit. Please try again."),
+          ),
+        );
+      }
     }
   }
 }
@@ -291,19 +301,14 @@ class _OutfitCanvasPreview extends StatelessWidget {
       // Skip entries whose item has since been deleted.
       if (!resolved.items.any((i) => i.id == canvasData.itemId)) continue;
 
-      // Factor in scale to compute the true visual bounds
-      final scaledSize = canvasData.size * canvasData.scale;
-      final offset = (scaledSize - canvasData.size) / 2;
+      // Factors in both scale and crop, so a cropped item doesn't reserve
+      // preview space for pixels it no longer shows.
+      final bounds = canvasData.visualBounds;
 
-      final itemLeft = canvasData.x - offset;
-      final itemTop = canvasData.y - offset;
-      final itemRight = canvasData.x + canvasData.size + offset;
-      final itemBottom = canvasData.y + canvasData.size + offset;
-
-      if (itemLeft < minX) minX = itemLeft;
-      if (itemTop < minY) minY = itemTop;
-      if (itemRight > maxX) maxX = itemRight;
-      if (itemBottom > maxY) maxY = itemBottom;
+      if (bounds.left < minX) minX = bounds.left;
+      if (bounds.top < minY) minY = bounds.top;
+      if (bounds.right > maxX) maxX = bounds.right;
+      if (bounds.bottom > maxY) maxY = bounds.bottom;
     }
 
     // Fallback if no valid items were found
@@ -355,16 +360,20 @@ class _OutfitCanvasPreview extends StatelessWidget {
                         child: Transform(
                           alignment: Alignment.center,
                           transform: Matrix4.identity()
-                            ..scale(canvasData.scale)
+                            ..scaleByDouble(canvasData.scale, canvasData.scale,
+                                canvasData.scale, 1)
                             ..rotateZ(canvasData.rotation),
-                          child: CachedNetworkImage(
-                            imageUrl: item.imageUrl,
-                            width: canvasData.size,
-                            height: canvasData.size,
-                            fit: BoxFit.contain,
-                            placeholder: (_, __) => const SizedBox.shrink(),
-                            errorWidget: (_, __, ___) =>
-                                const Icon(Icons.broken_image),
+                          child: ClipRect(
+                            clipper: CropClipper(canvasData.crop),
+                            child: CachedNetworkImage(
+                              imageUrl: item.imageUrl,
+                              width: canvasData.size,
+                              height: canvasData.size,
+                              fit: BoxFit.contain,
+                              placeholder: (_, _) => const SizedBox.shrink(),
+                              errorWidget: (_, _, _) =>
+                                  const Icon(Icons.broken_image),
+                            ),
                           ),
                         ),
                       );
@@ -393,7 +402,7 @@ class _ItemStrip extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final item = items[index];
           return ClipRRect(
@@ -404,10 +413,10 @@ class _ItemStrip extends StatelessWidget {
               child: CachedNetworkImage(
                 imageUrl: item.imageUrl,
                 fit: BoxFit.contain,
-                placeholder: (_, __) => const Center(
+                placeholder: (_, _) => const Center(
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-                errorWidget: (_, __, ___) =>
+                errorWidget: (_, _, _) =>
                     const Icon(Icons.broken_image, size: 24),
               ),
             ),

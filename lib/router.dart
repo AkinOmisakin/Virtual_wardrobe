@@ -9,6 +9,7 @@ import 'package:virtual_wardrobe/pages/home.dart';
 import 'package:virtual_wardrobe/pages/login_page.dart';
 import 'package:virtual_wardrobe/pages/profile.dart';
 import 'package:virtual_wardrobe/pages/wardrobe.dart';
+import 'package:virtual_wardrobe/services/credits_provider.dart';
 import 'package:virtual_wardrobe/services/itemprovider.dart';
 import 'package:virtual_wardrobe/services/outfitprovider.dart';
 
@@ -35,8 +36,12 @@ final router = GoRouter(
     StatefulShellRoute.indexedStack(
       // Providers wrap the shell so every tab shares the same instances and
       // they are disposed automatically on sign-out when the shell is unmounted.
-      builder: (context, state, navigationShell) => ChangeNotifierProvider(
-        create: (_) => ItemProvider(),
+      builder: (context, state, navigationShell) => MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => ItemProvider()),
+          // Loaded once on sign-in; the try-on and top-up flows refresh it.
+          ChangeNotifierProvider(create: (_) => CreditsProvider()..refresh()),
+        ],
         child: _OutfitProviderBridge(
           child: AppShell(navigationShell: navigationShell),
         ),

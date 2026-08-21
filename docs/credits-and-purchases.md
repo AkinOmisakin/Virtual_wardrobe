@@ -65,16 +65,47 @@ Set with `supabase secrets set KEY=value`.
    because RevenueCat has no Supabase user JWT. It authenticates on the shared
    secret instead.
 
-> **The app must call `Purchases.logIn(<supabase user id>)` before any
-> purchase.** Otherwise RevenueCat sends an anonymous `$RCAnonymousID:…` and
-> there is no account to credit. The webhook logs and drops these; the money is
-> taken and nothing is granted.
+4. Put the **public** Play SDK key (`goog_…`) in `.env` as
+   `REVENUECAT_ANDROID_API_KEY`. Leaving it blank disables purchases and leaves
+   the rest of the app working, which is the intended development setup.
 
-### Sandbox
+> **The RevenueCat app user id must be the Supabase user id.** Otherwise
+> RevenueCat sends an anonymous `$RCAnonymousID:…` and there is no account to
+> credit. The webhook logs and drops these; the money is taken and nothing is
+> granted. [purchases_service.dart](../lib/services/purchases_service.dart)
+> keeps the two in lockstep by subscribing to `onAuthStateChange`.
 
-Play license testers generate `SANDBOX` events. These are ignored unless
-`ALLOW_SANDBOX_PURCHASES=true`, so the 12-tester closed-testing group cannot
-mint real credits. Turn it on while verifying the purchase flow, then off.
+## Client flow
+
+| File | Role |
+| --- | --- |
+| [purchases_service.dart](../lib/services/purchases_service.dart) | RevenueCat SDK wrapper; identity sync; catalogue and purchase. |
+| [credits_provider.dart](../lib/services/credits_provider.dart) | Reactive balance. Mirrors the server, never writes it. |
+| [credits_sheet.dart](../lib/pages/credits_sheet.dart) | Top-up sheet with packs, prices and Restore. |
+| [tryon_page.dart](../lib/pages/tryon_page.dart) | Balance chip; opens the sheet on `insufficient_credits`. |
+
+The purchase completes in the store *before* the credits exist, because the
+grant happens out-of-band when RevenueCat calls the webhook. `awaitTopUp()`
+polls the balance for up to 25s to cover that gap. If it times out the sheet
+says the credits are on their way rather than reporting a failure — the grant is
+late, not lost, and RevenueCat retries undelivered webhooks.
+
+Pack names and prices come from the store listing, so the credit amounts live in
+exactly one place: `CREDIT_PACKS` on the server. Name the Play products
+accordingly (e.g. "20 try-on credits").
+
+### Sandbox and the Test Store
+
+Play license testers and RevenueCat's **Test Store** both generate `SANDBOX`
+events. These are ignored unless `ALLOW_SANDBOX_PURCHASES=true`, so the
+12-tester closed-testing group cannot mint real credits. Turn it on while
+verifying the purchase flow, then off.
+
+The Test Store is the way to exercise the full purchase → webhook → credit loop
+before you have a Play Console account: its `test_…` key needs no store setup at
+all. It also bypasses the stores entirely, so shipping that key would let anyone
+mint credits — release builds refuse to configure with a `test_` key, and a
+`goog_` key from a real Google Play app is required for anything you hand out.
 
 ## Refunds
 

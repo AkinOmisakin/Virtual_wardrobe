@@ -1,0 +1,19 @@
+# Copy to `android/key.properties` and fill in. That file is gitignored.
+#
+# Create the keystore once and never replace it:
+#
+#   keytool -genkey -v -keystore C:/Users/<you>/keys/cher-upload.jks \
+#     -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# Store it OUTSIDE this repo and back it up. Losing it means Google Play will
+# never accept another update to the app — there is no recovery process.
+#
+# After creating it, read the SHA-1 and add it to the Google Cloud OAuth client
+# and Supabase auth settings, or Google Sign-In will fail in release builds:
+#
+#   keytool -list -v -keystore C:/Users/<you>/keys/cher-upload.jks -alias upload
+
+storeFile=C:/Users/<you>/keys/cher-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=

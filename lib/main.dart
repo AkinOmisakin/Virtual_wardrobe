@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:virtual_wardrobe/services/purchases_service.dart';
 import 'router.dart';
 
 Future<void> main() async {
@@ -65,6 +66,11 @@ class _BootstrapState extends State<_Bootstrap> {
       if (!_isSupabaseInitialized) {
         await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
       }
+
+      // Must come after Supabase.initialize so the RevenueCat identity can be
+      // pinned to the current session. Never throws — if purchases cannot be
+      // configured the app still runs, just without the top-up sheet.
+      await PurchasesService.instance.initialize();
 
       if (mounted) setState(() => _status = _InitStatus.ready);
     } catch (e, st) {

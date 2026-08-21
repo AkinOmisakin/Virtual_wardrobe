@@ -3,7 +3,10 @@
 *.log
 *.pyc
 *.swp
-.env
+# Every env file except the committed template. The wildcard matters: a bare
+# `.env` entry does NOT match `.env.dev` or `.env.prod`.
+.env*
+!.env.example
 .DS_Store
 .atom/
 .build/
@@ -47,3 +50,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Release signing. The keystore is unrecoverable — if it leaks anyone can ship
+# an "update" to Cher, and if it is lost Play will never accept another update.
+# Keep the .jks outside the repo entirely and back it up somewhere safe.
+/android/key.properties
+*.jks
+*.keystore

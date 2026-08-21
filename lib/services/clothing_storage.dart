@@ -29,7 +29,7 @@ class ClothingStorage {
   }) async {
     final userId = Supabase.instance.client.auth.currentUser?.id ?? 'anon';
     final folder = type.name.toLowerCase(); // e.g. "top", "trouser"
-    final ext = _extensionOf(file.path);
+    final ext = extensionOf(file.path);
     final name = '${_uniqueId()}${suffix != null ? '_$suffix' : ''}.$ext';
     final path = '$userId/$folder/$name';
 
@@ -37,7 +37,7 @@ class ClothingStorage {
     await storage.upload(
       path,
       file,
-      fileOptions: FileOptions(contentType: _contentTypeFor(ext)),
+      fileOptions: FileOptions(contentType: contentTypeFor(ext)),
     );
     return storage.getPublicUrl(path);
   }
@@ -53,7 +53,10 @@ class ClothingStorage {
   /// Safe lowercase extension: strips any query/fragment, falls back to 'jpg'
   /// when there is none, and rejects anything that isn't a short alnum token
   /// (e.g. a dot that was actually part of a folder name).
-  static String _extensionOf(String path) {
+  ///
+  /// Public because avatar uploads need the same rules — two copies of this
+  /// would be two chances to disagree about what a valid extension is.
+  static String extensionOf(String path) {
     final clean = path.split('?').first.split('#').first;
     final dot = clean.lastIndexOf('.');
     if (dot == -1 || dot == clean.length - 1) return 'jpg';
@@ -61,7 +64,7 @@ class ClothingStorage {
     return RegExp(r'^[a-z0-9]{1,5}$').hasMatch(ext) ? ext : 'jpg';
   }
 
-  static String _contentTypeFor(String ext) {
+  static String contentTypeFor(String ext) {
     switch (ext) {
       case 'png':
         return 'image/png';

@@ -2,10 +2,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:virtual_wardrobe/pages/credits_sheet.dart';
+import 'package:virtual_wardrobe/pages/report_dialog.dart';
+import 'package:virtual_wardrobe/services/credits_provider.dart';
+import 'package:virtual_wardrobe/services/report_service.dart';
 import 'package:virtual_wardrobe/services/outfitprovider.dart';
 import 'package:virtual_wardrobe/services/userprofileprovider.dart';
 import 'package:virtual_wardrobe/services/tryon_service.dart';
 import 'package:virtual_wardrobe/utils/error_messages.dart';
+import 'package:virtual_wardrobe/utils/user_facing_exception.dart';
 
 class TryOnPage extends StatefulWidget {
   const TryOnPage({super.key});
@@ -30,6 +35,21 @@ class _TryOnPageState extends State<TryOnPage> {
       appBar: AppBar(
         title: const Text('Try on'),
         centerTitle: true,
+        actions: [
+          // Tapping the balance opens the top-up sheet, so users can buy
+          // before they hit the wall rather than only after.
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton.icon(
+              onPressed: () => showCreditsSheet(context),
+              icon: const Icon(Icons.bolt, size: 16, color: Colors.black),
+              label: Text(
+                '${context.watch<CreditsProvider>().balance}',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ),
+          ),
+        ],
       ),
       body: switch (_stage) {
         'processing' => _ProcessingView(
@@ -49,11 +69,17 @@ class _TryOnPageState extends State<TryOnPage> {
     );
   }
 
-  Future<void> _startTryOn(List<String> selectedOutfitItemIds) async {
+  /// [allowTopUp] is cleared on the retry after a purchase, so a user who is
+  /// still short cannot be bounced into the purchase sheet in a loop.
+  Future<void> _startTryOn(
+    List<String> selectedOutfitItemIds, {
+    bool allowTopUp = true,
+  }) async {
     final profileProvider =
         Provider.of<UserProfileProvider>(context, listen: false);
     final outfitProvider =
         Provider.of<OutfitProvider>(context, listen: false);
+    final credits = Provider.of<CreditsProvider>(context, listen: false);
 
     // 1. Ensure a model photo exists.
     final personUrl = await profileProvider.freshModelPhotoUrl();
@@ -102,14 +128,34 @@ class _TryOnPageState extends State<TryOnPage> {
           _stage = 'result';
         });
       }
+      // Credits were just spent server-side; pull the authoritative number.
+      await credits.refresh();
     } catch (e) {
-      if (mounted) {
+      if (!mounted) return;
+
+      // Out of credits is a thing the user can fix, so offer the fix instead
+      // of an error message they can do nothing about.
+      if (e is UserFacingException &&
+          e.code == 'insufficient_credits' &&
+          allowTopUp) {
         setState(() {
-          _error = friendlyError(e,
-              fallback: 'Try-on failed. Please try again.');
+          _error = null;
           _stage = 'select';
         });
+        final toppedUp = await showCreditsSheet(context);
+        if (toppedUp && mounted) {
+          await _startTryOn(selectedOutfitItemIds, allowTopUp: false);
+        }
+        return;
       }
+
+      setState(() {
+        _error = friendlyError(e,
+            fallback: 'Try-on failed. Please try again.');
+        _stage = 'select';
+      });
+      // A partial run may still have spent credits before failing.
+      await credits.refresh();
     }
   }
 }
@@ -278,7 +324,7 @@ class _SelectViewState extends State<_SelectView> {
     );
   }
 
-  Widget _outfitThumb(resolved) {
+  Widget _outfitThumb(ResolvedOutfit resolved) {
     final items = resolved.items;
     if (items.isEmpty) {
       return Icon(Icons.checkroom_outlined,
@@ -287,8 +333,8 @@ class _SelectViewState extends State<_SelectView> {
     return CachedNetworkImage(
       imageUrl: items.first.imageUrl,
       fit: BoxFit.contain,
-      placeholder: (_, __) => const SizedBox.shrink(),
-      errorWidget: (_, __, ___) => const Icon(Icons.broken_image),
+      placeholder: (_, _) => const SizedBox.shrink(),
+      errorWidget: (_, _, _) => const Icon(Icons.broken_image),
     );
   }
 }
@@ -405,12 +451,55 @@ class _ResultView extends StatelessWidget {
                 imageUrl: resultUrl,
                 fit: BoxFit.contain,
                 width: double.infinity,
-                placeholder: (_, __) =>
+                placeholder: (_, _) =>
                     const Center(child: CircularProgressIndicator()),
-                errorWidget: (_, __, ___) =>
+                errorWidget: (_, _, _) =>
                     const Center(child: Icon(Icons.broken_image, size: 48)),
               ),
             ),
+          ),
+        ),
+        // Play's generative-AI policy requires both an in-app disclosure that
+        // the image is AI-generated and a way to flag it without leaving the
+        // app. Neither is optional for an app that renders people.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.auto_awesome, size: 13, color: Colors.grey[600]),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'Generated by AI',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: Colors.grey[600]),
+                ),
+              ),
+              const SizedBox(width: 4),
+              TextButton(
+                onPressed: () => showReportSheet(
+                  context,
+                  type: ReportedContentType.tryOnResult,
+                  contentRef: resultUrl,
+                  contentUrl: resultUrl,
+                ),
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Report',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: Colors.grey[700]),
+                ),
+              ),
+            ],
           ),
         ),
         SafeArea(

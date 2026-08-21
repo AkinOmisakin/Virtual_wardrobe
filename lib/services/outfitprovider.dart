@@ -117,11 +117,23 @@ class OutfitProvider extends ChangeNotifier {
   // ── mutations ──────────────────────────────────────────────────────────────
 
   Future<void> deleteOutfit(String outfitId) async {
-    await Supabase.instance.client
-        .from('outfits')
-        .delete()
-        .eq('id', outfitId);
-    // Realtime channel triggers _fetchOutfits automatically.
+    // Drop it locally first: realtime DELETE payloads only carry the primary
+    // key, so the user_id filter on the channel never matches them and no
+    // refetch would be triggered.
+    final previous = _outfits;
+    _outfits = _outfits.where((r) => r.outfit.id != outfitId).toList();
+    notifyListeners();
+
+    try {
+      await Supabase.instance.client
+          .from('outfits')
+          .delete()
+          .eq('id', outfitId);
+    } catch (e) {
+      _outfits = previous;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> renameOutfit(String outfitId, String newName) async {

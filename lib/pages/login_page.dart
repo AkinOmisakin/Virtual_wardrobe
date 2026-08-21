@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -27,10 +28,20 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _initializeGoogleSignIn() async {
     try {
-      await _googleSignIn.initialize(
-        // Web Client ID from Google Cloud Console → Credentials.
-        // Must match the Client ID configured in Supabase → Auth → Google.
-      );
+      // Web Client ID from Google Cloud Console → Credentials. Must match the
+      // Client ID configured in Supabase → Auth → Google, because Supabase
+      // validates the audience of the ID token this produces.
+      //
+      // Passed explicitly rather than left to the plugin's fallback: on Android
+      // it would otherwise read `default_web_client_id`, a resource generated
+      // from google-services.json, which this project no longer ships.
+      final serverClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
+      if (serverClientId == null || serverClientId.isEmpty) {
+        debugPrint('GOOGLE_WEB_CLIENT_ID not set — Google Sign-In disabled');
+        return;
+      }
+
+      await _googleSignIn.initialize(serverClientId: serverClientId);
       _isGoogleSignInInitialized = true;
     } catch (e) {
       debugPrint('Failed to initialize Google Sign-In: $e');

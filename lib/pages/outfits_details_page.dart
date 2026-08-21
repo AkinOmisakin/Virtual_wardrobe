@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-// import 'package:virtual_wardrobe/models/outfit.dart';
-import 'package:virtual_wardrobe/models/clothing_item.dart';
+
+// import 'package:virtual_wardrobe/pages/item.dart';
+// import 'package:virtual_wardrobe/models/clothing_item.dart';
+import 'package:virtual_wardrobe/pages/outfit_edit_page.dart';
 import 'package:virtual_wardrobe/services/outfitprovider.dart';
+
+
 
 
 class OutfitDetailsPage extends StatelessWidget {
   final ResolvedOutfit resolved;
 
   const OutfitDetailsPage({super.key, required this.resolved});
+  
 
   @override
   Widget build(BuildContext context) {
@@ -23,13 +28,7 @@ class OutfitDetailsPage extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Items in this look',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
+      
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -42,46 +41,44 @@ class OutfitDetailsPage extends StatelessWidget {
               itemCount: items.length,
               itemBuilder: (context, index) {
                 final item = items[index];
-                return _IndividualItemCard(item: item);
+                return InkWell( 
+                  onTap: () => null, // Navigate to item details page if needed
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: Container(
+                        color: Colors.white,
+                        padding: const EdgeInsets.all(10.0),
+                        alignment: Alignment.center,
+                        child: CachedNetworkImage(
+                          imageUrl: item.imageUrl,
+                          fit: BoxFit.contain,
+                          placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                          errorWidget: (context, url, error) => const Icon(Icons.broken_image),
+                        ),
+                      )
+                    )
+                  )
+                );
               },
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
 
-class _IndividualItemCard extends StatelessWidget {
-  final ClothingItem item;
+          const SizedBox(height: 16),
 
-  const _IndividualItemCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: CachedNetworkImage(
-                imageUrl: item.imageUrl,
-                fit: BoxFit.contain,
-                placeholder: (_, __) => const Center(child: CircularProgressIndicator()),
-                errorWidget: (_, __, ___) => const Icon(Icons.broken_image),
-              ),
-            ),
-          ),
           Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
-            child: Text(
-              item.type.displayName, // Shows 'Shoes', 'Tops', etc.
-              style: Theme.of(context).textTheme.bodySmall,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: ElevatedButton(
+              onPressed: () {
+                // Navigate to the edit outfit page
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => OutfitEditPage(resolved: resolved),
+                  ),
+                );
+              },
+              child: const Text('Edit Outfit'),
             ),
           ),
         ],
